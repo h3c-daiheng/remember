@@ -120,7 +120,12 @@ public class WorkspaceService {
         if (StringUtils.isBlank(workspaceId)) {
             throw new BusinessException(400, "工作空间 ID 不能为空");
         }
-        if (!WorkspaceMemberRole.OWNER.equals(memberRole)) {
+        // 校验当前用户在「目标工作空间」的成员资格与 owner 角色。
+        // 不能直接使用调用方当前激活空间的 memberRole,否则 A 空间 owner 可越权删除 B 空间(C1)。
+        WorkspaceMemberEntity member = workspaceMemberMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<WorkspaceMemberEntity>()
+                        .eq("workspace_id", workspaceId).eq("user_id", userId));
+        if (member == null || !WorkspaceMemberRole.OWNER.equals(member.getMemberRole())) {
             throw new BusinessException(403, "仅工作空间 owner 可删除工作空间");
         }
         WorkspaceEntity workspace = workspaceMapper.selectById(workspaceId);

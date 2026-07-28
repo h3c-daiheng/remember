@@ -9,6 +9,7 @@ import com.zhiyi.dao.WorkspaceGovernanceConfigMapper;
 import com.zhiyi.dao.WorkspaceMapper;
 import com.zhiyi.dao.WorkspaceMemberMapper;
 import com.zhiyi.domain.entity.WorkspaceEntity;
+import com.zhiyi.domain.entity.WorkspaceMemberEntity;
 import com.zhiyi.memory.dao.CaptureAiReviewMapper;
 import com.zhiyi.memory.dao.CaptureDraftMapper;
 import com.zhiyi.memory.dao.GovernanceIssueMapper;
@@ -62,13 +63,15 @@ class WorkspaceServiceTest {
 
     @Test
     void deleteWorkspace_should_require_owner() {
-        // 角色 OWNER 校验先于 selectById,无需 stub workspaceMapper
+        // C1:校验目标空间成员资格。非成员(即使当前激活空间角色为 OWNER)禁止删除,先于 selectById,无需 stub workspaceMapper
+        given(workspaceMemberMapper.selectOne(any())).willReturn(null);
         assertThrows(BusinessException.class,
-                () -> workspaceService.deleteWorkspace("1", 2L, WorkspaceMemberRole.EDITOR, "默认"));
+                () -> workspaceService.deleteWorkspace("1", 2L, WorkspaceMemberRole.OWNER, "默认"));
     }
 
     @Test
     void deleteWorkspace_should_require_confirm_name_match() {
+        given(workspaceMemberMapper.selectOne(any())).willReturn(ownerMember());
         given(workspaceMapper.selectById("1")).willReturn(workspace("默认", "1"));
         assertThrows(BusinessException.class,
                 () -> workspaceService.deleteWorkspace("1", 1L, WorkspaceMemberRole.OWNER, "错的名称"));
@@ -76,6 +79,7 @@ class WorkspaceServiceTest {
 
     @Test
     void deleteWorkspace_should_cascade_delete_all_tables() {
+        given(workspaceMemberMapper.selectOne(any())).willReturn(ownerMember());
         given(workspaceMapper.selectById("1")).willReturn(workspace("默认", "1"));
         // 让 knowledge 子表清理分支进入(否则 IN () 空集跳过)
         given(knowledgeMapper.selectIdsByWorkspace("1")).willReturn(java.util.Collections.singletonList(1L));
@@ -110,5 +114,11 @@ class WorkspaceServiceTest {
         ws.setWorkspaceName(name);
         ws.setOrganizationId(1L);
         return ws;
+    }
+
+    private WorkspaceMemberEntity ownerMember() {
+        WorkspaceMemberEntity member = new WorkspaceMemberEntity();
+        member.setMemberRole(WorkspaceMemberRole.OWNER);
+        return member;
     }
 }
