@@ -342,8 +342,10 @@ public class KnowledgeService {
     public void deleteKnowledge(Long knowledgeId, String workspaceId, Long operatorUserId, String memberRole) {
         KnowledgeEntity entity = requireKnowledgeInWorkspace(knowledgeId, workspaceId);
         requireDeletePermission(entity, operatorUserId, memberRole);
+        deleteChildren(knowledgeId);
         relationEngine.deleteRelationsByKnowledgeId(knowledgeId, workspaceId);
-        retrievalEngine.deleteByKnowledgeId(knowledgeId);
+        memoryFeedbackMapper.delete(new LambdaQueryWrapper<MemoryFeedbackEntity>()
+                .eq(MemoryFeedbackEntity::getKnowledgeId, knowledgeId));
         knowledgeMapper.deleteById(knowledgeId);
     }
 
