@@ -29,6 +29,7 @@ import com.zhiyi.memory.timeline.KnowledgeTimelineService;
 import com.zhiyi.memory.retrieval.RetrievalEngine;
 import org.springframework.context.annotation.Lazy;
 import com.zhiyi.domain.vo.UserProfileBrief;
+import com.zhiyi.memory.util.KnowledgeMarkdownSerializer;
 import com.zhiyi.memory.util.MemoryJsonUtil;
 import com.zhiyi.service.UserProfileService;
 import com.zhiyi.workspace.WorkspaceMemberRole;
@@ -124,6 +125,32 @@ public class KnowledgeService {
         }
         enrichCreatorProfiles(aggregateList);
         return PageResult.of(pageInfo.getTotal(), aggregateList);
+    }
+
+    /**
+     * 导出当前工作空间已发布知识为 Markdown 字符串
+     *
+     * @param workspaceId   工作空间主键
+     * @param workspaceName 工作空间显示名(用于文件头)
+     * @param knowledgeType knowledgeType,null/"all" 表示全部四种类型
+     * @param exportTime    导出时间字符串(用于文件头)
+     */
+    public String exportMarkdown(String workspaceId, String workspaceName,
+                                 String knowledgeType, String exportTime) {
+        requireWorkspaceId(workspaceId);
+        LambdaQueryWrapper<KnowledgeEntity> wrapper = new LambdaQueryWrapper<KnowledgeEntity>();
+        wrapper.eq(KnowledgeEntity::getWorkspaceId, workspaceId);
+        wrapper.eq(KnowledgeEntity::getLifecycleStatus, MemoryConstants.LIFECYCLE_PUBLISHED);
+        if (StringUtils.isNotBlank(knowledgeType) && !"all".equals(knowledgeType)) {
+            wrapper.eq(KnowledgeEntity::getKnowledgeType, knowledgeType);
+        }
+        wrapper.orderByDesc(KnowledgeEntity::getUpdateTime);
+        List<KnowledgeEntity> entities = knowledgeMapper.selectList(wrapper);
+        List<KnowledgeAggregate> aggregates = new ArrayList<KnowledgeAggregate>();
+        for (KnowledgeEntity entity : entities) {
+            aggregates.add(loadAggregate(entity));
+        }
+        return KnowledgeMarkdownSerializer.serializeWorkspace(workspaceName, exportTime, aggregates);
     }
 
     /**
