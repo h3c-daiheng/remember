@@ -16,6 +16,7 @@ import com.zhiyi.memory.domain.ArtifactDto;
 import com.zhiyi.memory.domain.FactBlock;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
 import com.zhiyi.memory.domain.KnowledgeDraftContent;
+import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.entity.KnowledgeArtifactEntity;
 import com.zhiyi.memory.entity.KnowledgeEntity;
@@ -29,6 +30,7 @@ import com.zhiyi.memory.timeline.KnowledgeTimelineService;
 import com.zhiyi.memory.retrieval.RetrievalEngine;
 import org.springframework.context.annotation.Lazy;
 import com.zhiyi.domain.vo.UserProfileBrief;
+import com.zhiyi.memory.util.KnowledgeMarkdownParser;
 import com.zhiyi.memory.util.KnowledgeMarkdownSerializer;
 import com.zhiyi.memory.util.MemoryJsonUtil;
 import com.zhiyi.service.UserProfileService;
@@ -276,6 +278,40 @@ public class KnowledgeService {
             indexKnowledge(entity.getId());
         }
         return entity.getId();
+    }
+
+    /**
+     * 批量导入经验:解析 Markdown,逐条创建为草稿(不经 AI,不进 capture_draft)。
+     * 解析非法块计入 failures;创建阶段任一异常触发整批事务回滚。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public KnowledgeImportResult importMarkdown(String markdown, Long creatorId, String workspaceId) {
+        requireWorkspaceId(workspaceId);
+        if (creatorId == null) {
+            throw new BusinessException(400, "创建者不能为空");
+        }
+        List<String> blocks = KnowledgeMarkdownParser.splitBlocks(markdown);
+        KnowledgeImportResult result = new KnowledgeImportResult();
+        result.setTotal(blocks.size());
+
+        List<KnowledgeSaveRequest> parsed = new ArrayList<KnowledgeSaveRequest>();
+        for (int i = 0; i < blocks.size(); i++) {
+            String block = blocks.get(i);
+            try {
+                KnowledgeSaveRequest req = KnowledgeMarkdownParser.parseBlock(block);
+                parsed.add(req);
+            } catch (BusinessException e) {
+                result.getFailures().add(new KnowledgeImportResult.Failure(i + 1, null, e.getMessage()));
+            }
+        }
+
+        for (KnowledgeSaveRequest req : parsed) {
+            req.setPublish(false);
+            create(req, creatorId, workspaceId, null);
+            result.setImported(result.getImported() + 1);
+        }
+        result.setFailed(result.getFailures().size());
+        return result;
     }
 
     /**

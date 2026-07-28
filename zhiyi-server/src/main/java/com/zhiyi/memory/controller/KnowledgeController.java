@@ -13,12 +13,14 @@ import com.zhiyi.domain.vo.KnowledgeSupersedeRequest;
 import com.zhiyi.domain.vo.KnowledgeTimelineItemVO;
 import com.zhiyi.domain.vo.LoginUserVO;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
+import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.knowledge.KnowledgeRelatedService;
 import com.zhiyi.memory.knowledge.KnowledgeRelationService;
 import com.zhiyi.memory.knowledge.KnowledgeService;
 import com.zhiyi.memory.graph.GraphGovernanceService;
 import com.zhiyi.memory.timeline.KnowledgeTimelineService;
+import com.zhiyi.memory.MemoryConstants;
 import com.zhiyi.workspace.WorkspaceMemberRole;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,9 +32,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -199,6 +203,25 @@ public class KnowledgeController {
         LoginUserVO loginUser = requireKnowledgeEditor(request);
         return Result.success(knowledgeService.create(
                 saveRequest, loginUser.getUserId(), requireWorkspaceId(loginUser)));
+    }
+
+    /**
+     * 批量导入经验:上传 Markdown 文件,解析为草稿
+     */
+    @PostMapping("/import")
+    public Result<KnowledgeImportResult> doImport(
+            @RequestParam("file") MultipartFile file, HttpServletRequest request) throws IOException {
+        LoginUserVO loginUser = requireKnowledgeEditor(request);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "导入文件为空");
+        }
+        long size = file.getSize();
+        if (size > MemoryConstants.IMPORT_MAX_CONTENT_LENGTH) {
+            throw new BusinessException(400, "导入文件超过大小上限 " + MemoryConstants.IMPORT_MAX_CONTENT_LENGTH + " 字节");
+        }
+        String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+        return Result.success(knowledgeService.importMarkdown(
+                content, loginUser.getUserId(), requireWorkspaceId(loginUser)));
     }
 
     /**
