@@ -124,7 +124,11 @@ async function handlePublish() {
                 await supersedeKnowledge(knowledgeId.value, { predecessorId: Number(predecessorId), comment: '规则修订重发' })
                 ElMessage.success('已替代原规则')
             } catch (e) {
-                // 用户选择「暂不替代」或取消,不报错;草稿已发布,可后续手动 supersede
+                if (e === 'cancel' || e?.message === 'cancel') {
+                    // 用户选择「暂不替代」,不报错
+                } else {
+                    ElMessage.error('替代原规则失败,可稍后在详情页手动 supersede')
+                }
             }
         }
         router.push(resolveKnowledgeDetailPath(editForm.value.knowledgeType, knowledgeId.value))
