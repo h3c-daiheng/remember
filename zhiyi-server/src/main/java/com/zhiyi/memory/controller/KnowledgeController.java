@@ -13,6 +13,7 @@ import com.zhiyi.domain.vo.KnowledgeSupersedeRequest;
 import com.zhiyi.domain.vo.KnowledgeTimelineItemVO;
 import com.zhiyi.domain.vo.LoginUserVO;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
+import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
 import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.knowledge.KnowledgeRelatedService;
@@ -22,6 +23,7 @@ import com.zhiyi.memory.graph.GraphGovernanceService;
 import com.zhiyi.memory.timeline.KnowledgeTimelineService;
 import com.zhiyi.memory.MemoryConstants;
 import com.zhiyi.workspace.WorkspaceMemberRole;
+import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -270,6 +272,18 @@ public class KnowledgeController {
     }
 
     /**
+     * 批量删除经验/规则
+     */
+    @DeleteMapping("/batch")
+    public Result<KnowledgeBatchDeleteResult> deleteBatch(
+            @RequestBody BatchDeleteRequest batchRequest, HttpServletRequest request) {
+        LoginUserVO loginUser = LoginContext.requireLoginUser(request);
+        return Result.success(knowledgeService.deleteByIds(
+                batchRequest.getIds(), requireWorkspaceId(loginUser),
+                loginUser.getUserId(), loginUser.getMemberRole()));
+    }
+
+    /**
      * 删除经验（逻辑删除）；管理者可删任意经验，其余角色仅可删本人创建的经验
      */
     @DeleteMapping("/{id}")
@@ -306,5 +320,13 @@ public class KnowledgeController {
             return Collections.emptyList();
         }
         return Arrays.asList(types.split(","));
+    }
+
+    /**
+     * 批量删除请求体
+     */
+    @Data
+    public static class BatchDeleteRequest {
+        private List<Long> ids;
     }
 }

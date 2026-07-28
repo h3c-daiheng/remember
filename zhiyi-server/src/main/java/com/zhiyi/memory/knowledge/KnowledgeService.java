@@ -15,6 +15,7 @@ import com.zhiyi.memory.dao.MemoryFeedbackMapper;
 import com.zhiyi.memory.domain.ArtifactDto;
 import com.zhiyi.memory.domain.FactBlock;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
+import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
 import com.zhiyi.memory.domain.KnowledgeDraftContent;
 import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
@@ -410,6 +411,30 @@ public class KnowledgeService {
         memoryFeedbackMapper.delete(new LambdaQueryWrapper<MemoryFeedbackEntity>()
                 .eq(MemoryFeedbackEntity::getKnowledgeId, knowledgeId));
         knowledgeMapper.deleteById(knowledgeId);
+    }
+
+    /**
+     * 批量删除知识:逐条独立删除(权限失败/不存在不阻塞其他),每条复用 deleteKnowledge 的独立事务。
+     * 注意:本方法不加 @Transactional,否则整批会并入一个事务,违背"逐条独立"的语义。
+     */
+    public KnowledgeBatchDeleteResult deleteByIds(List<Long> ids, String workspaceId,
+                                                  Long operatorUserId, String memberRole) {
+        requireWorkspaceId(workspaceId);
+        KnowledgeBatchDeleteResult result = new KnowledgeBatchDeleteResult();
+        if (ids == null) {
+            return result;
+        }
+        result.setTotal(ids.size());
+        for (Long id : ids) {
+            try {
+                deleteKnowledge(id, workspaceId, operatorUserId, memberRole);
+                result.setDeleted(result.getDeleted() + 1);
+            } catch (BusinessException e) {
+                result.getFailures().add(new KnowledgeBatchDeleteResult.Failure(id, e.getMessage()));
+            }
+        }
+        result.setFailed(result.getFailures().size());
+        return result;
     }
 
     /**
