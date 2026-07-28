@@ -71,6 +71,9 @@
                                 class="ml-2"
                             />
                         </el-button>
+                        <el-button :loading="exporting" @click="handleExport">
+                            <el-icon class="mr-1"><Download /></el-icon>导出 Markdown
+                        </el-button>
                     </template>
                 </KnowledgeListToolbar>
             </div>
@@ -164,7 +167,7 @@
 </template>
 
 <script setup>
-import { ArrowDown, DocumentChecked, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, DocumentChecked, Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { MEMORY_TRACK_EVENTS } from '~/config/tracker'
 import { MEMORY_FLYWHEEL_STEPS } from '~/constants/pageEmptyState'
@@ -175,6 +178,8 @@ import {
     MEMORY_TYPE_FILTER_ALL,
     MEMORY_TYPE_FILTER_OPTIONS,
 } from '~/constants/knowledge'
+import { exportKnowledgeMarkdown } from '~/services/knowledge.service'
+import { downloadTextFile } from '~/utils/fileDownload'
 
 definePageMeta({
     layout: 'app',
@@ -190,6 +195,7 @@ const { reportEvent } = useTracker()
 const { pendingDraftCount } = useAppNavigation()
 const { canEdit } = useCanEditKnowledge()
 const { creating, createDraftAndNavigate } = useKnowledgeCreate()
+const { currentWorkspace } = useWorkspace()
 const {
     loading,
     keyword,
@@ -208,6 +214,8 @@ const {
 } = useMemoryList()
 
 const memoryFlywheelSteps = MEMORY_FLYWHEEL_STEPS
+
+const exporting = ref(false)
 
 /** 新建类型下拉选项（不含「全部」） */
 const createTypeOptions = [
@@ -324,6 +332,21 @@ function handleCreate() {
         ? KNOWLEDGE_TYPES.EXPERIENCE
         : typeFilter.value
     handleCreateByType(knowledgeType)
+}
+
+async function handleExport() {
+  try {
+    exporting.value = true
+    const text = await exportKnowledgeMarkdown(typeFilter.value || 'all')
+    const wsName = currentWorkspace.value?.workspaceName || '工作空间'
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    downloadTextFile(`${wsName}-知识导出-${date}.md`, text)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error(e?.message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(async () => {

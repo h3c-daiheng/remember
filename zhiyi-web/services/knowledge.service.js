@@ -3,6 +3,7 @@
  * 对应后端 KnowledgeController /knowledge/*、GraphController /graph/*
  */
 import { apiRequest } from '~/services/http'
+import { getStoredToken } from '~/utils/token'
 import { appendTraceSearchFilters } from '~/utils/traceSearch'
 
 /**
@@ -187,4 +188,20 @@ export function supersedeKnowledge(successorId, payload) {
         method: 'POST',
         body: JSON.stringify(payload),
     })
+}
+
+/**
+ * 导出当前工作空间知识为 Markdown（后端返回 text/markdown 文件流，绕过 apiRequest 的 JSON 解包）
+ */
+export async function exportKnowledgeMarkdown(knowledgeType = 'all') {
+  const runtimeConfig = useRuntimeConfig()
+  const token = getStoredToken()
+  const query = knowledgeType ? `?knowledgeType=${encodeURIComponent(knowledgeType)}` : ''
+  const response = await fetch(`${runtimeConfig.public.apiBase}/knowledge/export${query}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  if (!response.ok) {
+    throw new Error('导出失败')
+  }
+  return response.text()
 }
