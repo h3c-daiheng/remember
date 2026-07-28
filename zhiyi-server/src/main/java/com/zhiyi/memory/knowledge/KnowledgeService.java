@@ -66,6 +66,11 @@ public class KnowledgeService {
     private final KnowledgeTimelineService knowledgeTimelineService;
     private final CascadeValidationService cascadeValidationService;
     private final UserProfileService userProfileService;
+    /**
+     * 自注入代理引用:用于 {@code deleteByIds} 通过代理调用 {@code deleteKnowledge},
+     * 确保 {@code @Transactional} 在 Spring 默认代理模式下不因自调用而失效。
+     */
+    private final KnowledgeService self;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeFactMapper knowledgeFactMapper,
@@ -78,7 +83,8 @@ public class KnowledgeService {
                             RelationEngine relationEngine,
                             KnowledgeTimelineService knowledgeTimelineService,
                             CascadeValidationService cascadeValidationService,
-                            UserProfileService userProfileService) {
+                            UserProfileService userProfileService,
+                            @Lazy KnowledgeService self) {
         this.knowledgeMapper = knowledgeMapper;
         this.knowledgeFactMapper = knowledgeFactMapper;
         this.knowledgeArtifactMapper = knowledgeArtifactMapper;
@@ -91,6 +97,7 @@ public class KnowledgeService {
         this.knowledgeTimelineService = knowledgeTimelineService;
         this.cascadeValidationService = cascadeValidationService;
         this.userProfileService = userProfileService;
+        this.self = self;
     }
 
     /**
@@ -414,8 +421,10 @@ public class KnowledgeService {
     }
 
     /**
-     * 批量删除知识:逐条独立删除(权限失败/不存在不阻塞其他),每条复用 deleteKnowledge 的独立事务。
-     * 注意:本方法不加 @Transactional,否则整批会并入一个事务,违背"逐条独立"的语义。
+     * 批量删除知识:逐条通过 self 代理调用 deleteKnowledge,各自独立原子事务;逐条
+     * BusinessException 计入 failure 不阻塞;非 BusinessException 中止时已删条目因独立事务保持完整。
+     * 注意:本方法不加 @Transactional,否则整批会并入一个事务,违背"逐条独立"的语义;
+     * 同时若加事务,内部 self.deleteKnowledge 的 REQUIRED 传播会并入外层,丧失逐条原子性。
      */
     public KnowledgeBatchDeleteResult deleteByIds(List<Long> ids, String workspaceId,
                                                   Long operatorUserId, String memberRole) {
@@ -427,7 +436,9 @@ public class KnowledgeService {
         result.setTotal(ids.size());
         for (Long id : ids) {
             try {
-                deleteKnowledge(id, workspaceId, operatorUserId, memberRole);
+                // 通过 self 代理调用,使 deleteKnowledge 上的 @Transactional 经代理生效;
+                // 因 deleteByIds 无外层事务,REQUIRED 传播为每条开独立事务,单条 4 个写操作原子。
+                self.deleteKnowledge(id, workspaceId, operatorUserId, memberRole);
                 result.setDeleted(result.getDeleted() + 1);
             } catch (BusinessException e) {
                 result.getFailures().add(new KnowledgeBatchDeleteResult.Failure(id, e.getMessage()));

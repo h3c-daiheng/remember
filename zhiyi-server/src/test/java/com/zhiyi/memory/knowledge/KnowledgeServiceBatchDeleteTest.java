@@ -14,11 +14,14 @@ import com.zhiyi.memory.dao.MemoryFeedbackMapper;
 import com.zhiyi.memory.graph.CascadeValidationService;
 import com.zhiyi.memory.timeline.KnowledgeTimelineService;
 import com.zhiyi.workspace.WorkspaceMemberRole;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,7 +48,14 @@ class KnowledgeServiceBatchDeleteTest {
     @Mock private CascadeValidationService cascadeValidationService;
     @Mock private com.zhiyi.service.UserProfileService userProfileService;
 
-    @InjectMocks private KnowledgeService knowledgeService;
+    @Spy @InjectMocks private KnowledgeService knowledgeService;
+
+    @BeforeEach
+    void wireSelfReference() {
+        // deleteByIds 通过 self 代理调用 deleteKnowledge;单元测试中无 Spring 容器,
+        // 将 self 字段指向 spy 自身,使其调用经 spy 桩,真实权限校验 + mock mapper 逻辑被执行。
+        ReflectionTestUtils.setField(knowledgeService, "self", knowledgeService);
+    }
 
     @Test
     void deleteByIds_should_delete_own_and_skip_others() {
