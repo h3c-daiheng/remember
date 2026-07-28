@@ -1,0 +1,11 @@
+node_modules/
+.nuxt/
+.output/
+dist/
+.DS_Store
+*.log
+.idea/
+.vscode/
+.git/
+bun.lock
+pnpm-lock.yaml

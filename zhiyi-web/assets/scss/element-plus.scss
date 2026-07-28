@@ -1,0 +1,8 @@
+/* Element Plus 品牌主色：编译期注入，覆盖默认 #409eff */
+@forward 'element-plus/theme-chalk/src/common/var.scss' with (
+  $colors: (
+    'primary': (
+      'base': #5d65f9,
+    ),
+  )
+);

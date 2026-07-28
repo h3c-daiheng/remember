@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "zhiyi-memory": {
+      "command": "node",
+      "args": ["/绝对路径到项目根/zhiyi-mcp/dist/index.js"],
+      "env": {
+        "BIGAPP_API_KEY": "bigapp_替换为你的Agent-API-Key"
+      }
+    }
+  }
+}

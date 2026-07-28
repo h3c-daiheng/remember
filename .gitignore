@@ -1,0 +1,108 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+.kotlin
+
+### IntelliJ IDEA ###
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+!packages/**/dist/
+!packages/**/dist/**
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+
+.DS_Store
+.git
+Thumbs.db
+*.log
+logs/
+**/logs/
+.idea
+.vscode
+*.code-workspace
+
+.dist
+node_modules/
+u.sh
+.github*/
+.nuxt/
+.output
+.output*
+# MCP 构建产物含烘焙 API 地址，勿把本地旧 dist 打进发布包
+zhiyi-mcp/dist/
+nohup.out
+*.zip
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+dist/
+# packages 下各子包构建产物（如 dist）仍纳入跟踪；其它目录的 dist 仍忽略
+!**/packages/**/dist/
+!**/packages/**/dist/**
+
+# misc
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+public/_nuxt/builds/latest.json
+/Public/_nuxt/
+/Publi/_nuxt/builds/latest.json
+public/_nuxt/builds/latest.json
+
+# ===== 智忆项目根级忽略 =====
+# 真实环境变量与本地 MCP 配置（含密钥，勿提交；见 .env.example / .mcp.json.example）
+/.env
+/.mcp.json
+# Claude Code 会话与本地设置
+/.claude/
+# 编译脚本产物：离线部署包与镜像归档
+/offline/
+zhiyi-offline*.tar.gz
+images.tar.gz
+# MCP 构建时生成的烘焙配置（npm run build 自动生成，勿提交）
+zhiyi-mcp/src/config.generated.ts

@@ -1,0 +1,84 @@
+server:
+  port: 4302
+spring:
+  application:
+    name: zhiyi-server
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  mvc:
+    path match:
+      matching-strategy: ant_path_matcher
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/zhiyi_test?allowMultiQueries=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: changeme
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 10000
+      connection-test-query: SELECT 1
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+
+logging:
+  file:
+    path: logs
+  level:
+    root: INFO
+    com.zhiyi: DEBUG
+
+zhiyi:
+  # 生产请改为具体前端域名；勿使用 * 并同时开启 credentials
+  cors:
+    allowed-origin-patterns: http://localhost:*,http://127.0.0.1:*,http://*.local.example.com:*
+  auth:
+    gonline:
+      check-token-url: http://127.0.0.1:3902/oauth/check_token
+      api-base-url: http://127.0.0.1:3902
+      client-id: your-client-id
+      client-secret: your-client-secret
+    # 长度须 ≥32；部署前请换成随机密钥
+    jwt-secret: please-change-me-use-a-long-random-secret
+    jwt-expire-hours: 168
+  model-gateway:
+    mode: remote
+    base-url: http://127.0.0.1:4502
+    app-id: zhiyi-server
+    app-token: change-me
+    default-chat-profile: summary-default
+    default-embedding-profile: embedding-default
+    route-profile: route-default
+    route-llm-enabled: true
+    route-llm-confidence-threshold: 0.75
+    connect-timeout-millis: 10000
+    read-timeout-millis: 120000
+  ai-review:
+    enabled: true
+    similar-threshold: 0.65
+    auto-route-enabled: true
+    auto-execute-confidence-threshold: 0.75
+  governance:
+    scheduler-enabled: false
+    incremental-scan-cron: "0 0 3 * * ?"
+    incremental-scan-enabled: true
+    validate-scan-enabled: true
+    feedback-trigger-enabled: true
+    outdated-feedback-threshold: 2
+    auto-resolve-enabled: false
+    auto-resolve-similarity-threshold: 0.85
+    default-similarity-threshold: 0.65

@@ -1,0 +1,18 @@
+# zhiyi-server 本地联调镜像（多阶段：本机无需预装 Java/Maven）
+# 生产部署仍用原 Dockerfile（依赖宿主预编译 jar），本文件不替代它
+FROM maven:3.9-eclipse-temurin-8 AS builder
+WORKDIR /build
+COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
+COPY src ./src
+RUN mvn -B -q clean package -DskipTests
+
+FROM eclipse-temurin:8-jre
+ENV TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+COPY entrypoint.sh /entrypoint.sh
+COPY --from=builder /build/target/zhiyi-server-1.0.0-SNAPSHOT.jar /app/zhiyi-server-1.0.0-SNAPSHOT.jar
+RUN chmod +x /entrypoint.sh
+EXPOSE 4302 4312 4322
+ENTRYPOINT ["/entrypoint.sh"]

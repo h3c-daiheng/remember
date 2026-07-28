@@ -1,0 +1,40 @@
+/* Element Plus 主题覆盖：变量 + 主色组件兜底（按需样式可能晚于 :root 注入） */
+:root {
+    --el-color-primary: #5d65f9 !important;
+    --el-color-primary-light-3: #8e93fb !important;
+    --el-color-primary-light-5: #aeb2fc !important;
+    --el-color-primary-light-7: #ced1fd !important;
+    --el-color-primary-light-8: #dfe0fe !important;
+    --el-color-primary-light-9: #eff0fe !important;
+    --el-color-primary-dark-2: #4a51c7 !important;
+}
+
+.el-button--primary:not(.is-disabled):not(.is-link):not(.is-plain) {
+    --el-button-bg-color: #5d65f9 !important;
+    --el-button-border-color: #5d65f9 !important;
+    --el-button-hover-bg-color: #4a51c7 !important;
+    --el-button-hover-border-color: #4a51c7 !important;
+    --el-button-active-bg-color: #4a51c7 !important;
+    --el-button-active-border-color: #4a51c7 !important;
+}
+
+/* plain 主色按钮单独兜底，避免被上方实心规则覆盖后文字与背景同色不可见 */
+.el-button--primary.is-plain:not(.is-disabled):not(.is-link) {
+    --el-button-bg-color: #eff0fe !important;
+    --el-button-border-color: #aeb2fc !important;
+    --el-button-text-color: #5d65f9 !important;
+    --el-button-hover-bg-color: #5d65f9 !important;
+    --el-button-hover-border-color: #5d65f9 !important;
+    --el-button-hover-text-color: #fff !important;
+    --el-button-active-bg-color: #4a51c7 !important;
+    --el-button-active-border-color: #4a51c7 !important;
+    --el-button-active-text-color: #fff !important;
+}
+
+.el-tabs__active-bar {
+    background-color: #5d65f9 !important;
+}
+
+.el-tabs__item.is-active {
+    color: #5d65f9 !important;
+}

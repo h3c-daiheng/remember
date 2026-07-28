@@ -1,0 +1,12 @@
+# 本地 SSO 联调 hosts 配置（追加到 /etc/hosts 或 C:\Windows\System32\drivers\etc\hosts）
+#
+# 智忆、gonline、chat2x 共用 .local.example.com Cookie 域，登录态可跨子域共享。
+# 配置后请使用下列域名访问，不要使用 localhost + 端口（Cookie 无法跨端口共享）。
+#
+# 智忆 Web：   http://zhiyi.local.example.com:4301
+# gonline 登录：http://gonline.local.example.com:3905
+# chat2x 参考： http://chat2x.local.example.com:4201
+
+127.0.0.1 zhiyi.local.example.com
+127.0.0.1 gonline.local.example.com
+127.0.0.1 chat2x.local.example.com

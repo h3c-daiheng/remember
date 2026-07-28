@@ -1,0 +1,91 @@
+# 智忆本地 Docker 联调编排
+# 启动：docker compose up -d --build
+# 访问：http://localhost  （/api 经 nginx 去前缀转 server:4302）
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: zhiyi-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: zhiyi
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"   # 仅本机，禁止公网
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # schema.sql 含增量 ALTER，需用 -f 容错执行，故挂初始化脚本而非直接挂 .sql
+      - ./docker/init-schema.sh:/docker-entrypoint-initdb.d/01-init-schema.sh:ro
+      - ./docker/seed-apikey.sh:/docker-entrypoint-initdb.d/02-seed-apikey.sh:ro
+      - ./zhiyi-server/sql/schema.sql:/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: ./zhiyi-server
+      dockerfile: Dockerfile.dev
+    container_name: zhiyi-server
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 用环境变量覆盖 dev yml 里写死的 127.0.0.1，指向 mysql 容器
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/zhiyi?allowMultiQueries=true&useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # 公网部署必须换随机密钥（>=32），走 .env
+      ZHIYI_AUTH_JWT_SECRET: ${JWT_SECRET}
+      # AI 网关（指向 ai-gateway 容器）
+      ZHIYI_MODEL_GATEWAY_MODE: remote
+      ZHIYI_MODEL_GATEWAY_BASE_URL: http://ai-gateway:4502
+      ZHIYI_MODEL_GATEWAY_APP_TOKEN: ${MODEL_GATEWAY_APP_TOKEN}
+    ports:
+      - "127.0.0.1:4302:4302"   # 仅本机，禁止公网
+
+  web:
+    build:
+      context: ./zhiyi-web
+      dockerfile: Dockerfile
+    container_name: zhiyi-web
+    depends_on:
+      - server
+    environment:
+      PORT: "4301"
+      # gonline 本地缺失，占位指向 server；仅 /gonline-api 调用时报错，不阻塞启动
+      NUXT_GONLINE_API_SERVER_TARGET: "http://server:4302"
+      NUXT_PUBLIC_GONLINE_WEB_ORIGIN: "http://localhost"
+      NUXT_PUBLIC_COOKIE_DOMAIN: ""
+    ports:
+      - "127.0.0.1:4301:4301"   # 仅本机，禁止公网
+
+  ai-gateway:
+    build: ./ai-gateway
+    container_name: zhiyi-ai-gateway
+    environment:
+      PORT: "4502"
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      APP_TOKEN: ${MODEL_GATEWAY_APP_TOKEN:-}
+    ports:
+      - "127.0.0.1:4502:4502"
+
+  nginx:
+    image: nginx:alpine
+    container_name: zhiyi-nginx
+    depends_on:
+      - web
+      - server
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/zhiyi.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  mysql_data:

@@ -1,0 +1,25 @@
+# Nuxt dev/build outputs（仅忽略仓库根目录 dist，保留 packages/*/dist 可提交）
+.output
+.data
+.nuxt
+.nitro
+.cache
+/dist
+
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+# Local overrides only（仓库内 .env / .env.development / .env.production / .env.test 可提交）
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

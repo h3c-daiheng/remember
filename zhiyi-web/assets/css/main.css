@@ -1,0 +1,83 @@
+/* 全局基础样式：配合 WindiCSS 与 Element Plus */
+
+/* 导航图标：默认中性灰，激活/待办使用品牌色与警示色 */
+:root {
+    --nav-icon-size: 32px;
+    --nav-icon-radius: 9px;
+    --nav-icon-bg: #f1f3f5;
+    --nav-icon-color: #6b7280;
+    --nav-icon-bg-hover: #e8ebf0;
+    --nav-icon-color-hover: #4b5563;
+    --nav-icon-bg-brand: #eff0fe;
+    --nav-icon-color-brand: #5d65f9;
+    --nav-icon-border-brand: #dfe0fe;
+    --nav-icon-bg-attention: #fff7ed;
+    --nav-icon-color-attention: #c2410c;
+    --nav-icon-border-attention: #ffedd5;
+    --nav-item-bg-active: #f8f9ff;
+    --nav-item-border-active: #e4e6fd;
+    --nav-item-label-active: #4338ca;
+    --nav-item-desc-active: #6366f1;
+}
+
+html,
+body,
+#__nuxt {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * 全局轻量 Toast（ElMessage + .app-toast）
+ * - 顶部居中弹出，不挡主工作区（sticky 顶栏 h-14 下方）
+ * - 白底轻阴影；语义色只留给图标
+ * - 由 plugins/app-message.client.js 注入 class
+ */
+.el-message.app-toast {
+    top: calc(3.5rem + 12px) !important;
+    left: 50% !important;
+    right: auto;
+    min-width: 0;
+    max-width: min(360px, calc(100vw - 48px));
+    padding: 10px 14px;
+    border-radius: 10px;
+    border-color: #e5e7eb !important;
+    background: #ffffff !important;
+    box-shadow:
+        0 8px 24px rgba(15, 23, 42, 0.1),
+        0 1px 3px rgba(15, 23, 42, 0.06);
+    transform: translate3d(-50%, 0, 0) !important;
+}
+
+.el-message.app-toast .el-message__content {
+    color: #1f2937 !important;
+    font-size: 14px;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.el-message.app-toast .el-message__badge {
+    right: -6px;
+    top: -6px;
+}
+
+/* 入场从顶部轻微滑入 */
+.el-message.app-toast.el-message-fade-enter-from,
+.el-message.app-toast.el-message-fade-leave-to {
+    opacity: 0;
+    transform: translate3d(-50%, -12px, 0) !important;
+}
+
+/* 错误略加强边框，便于与成功区分，正文仍保持中性色 */
+.el-message.app-toast.el-message--error {
+    border-color: #fecaca !important;
+}
+
+.el-message.app-toast.el-message--warning {
+    border-color: #fde68a !important;
+}

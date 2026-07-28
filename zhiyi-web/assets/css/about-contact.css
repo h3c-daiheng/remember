@@ -1,0 +1,45 @@
+/*
+ * 智忆关于 / 联系页
+ * - main 与页面统一白底，避免布局 gray-50 与内容白底断层
+ * - Markdown 正文由 SiteMdPreview（md-editor-v3）渲染，此处不覆盖字号层级
+ */
+
+main:has(.zhiyi-about),
+main:has(.zhiyi-contact) {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
+
+.zhiyi-about,
+.zhiyi-contact {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+    background: #fff;
+}
+
+.zhiyi-about-body,
+.zhiyi-contact-body {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+    box-sizing: border-box;
+}
+
+.zhiyi-about-empty,
+.zhiyi-contact-empty {
+    margin: 0;
+    padding: 40px 0;
+    text-align: center;
+    font-size: 16px;
+    color: #64748b;
+}
+
+@media (max-width: 640px) {
+    .zhiyi-about-body,
+    .zhiyi-contact-body {
+        padding: 40px 16px 64px;
+    }
+}
