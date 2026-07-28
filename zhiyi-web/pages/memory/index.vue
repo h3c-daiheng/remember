@@ -74,6 +74,9 @@
                         <el-button :loading="exporting" @click="handleExport">
                             <el-icon class="mr-1"><Download /></el-icon>导出 Markdown
                         </el-button>
+                        <el-button @click="importDialogVisible = true" :disabled="!canEdit">
+                            <el-icon class="mr-1"><UploadFilled /></el-icon>批量导入
+                        </el-button>
                     </template>
                 </KnowledgeListToolbar>
             </div>
@@ -163,11 +166,30 @@
                 @current-change="handlePageChange"
             />
         </div>
+
+        <el-dialog v-model="importDialogVisible" title="批量导入经验" width="560px" @close="closeImportDialog">
+            <el-upload drag :auto-upload="false" :show-file-list="false" accept=".md,.markdown,.txt" @change="handleImportFileChange" :disabled="importing">
+                <el-icon class="el-icon--upload" :size="40"><UploadFilled /></el-icon>
+                <div class="el-upload__text">拖拽或点击选择 .md 文件</div>
+                <template #tip><div class="el-upload__tip text-center">格式须与「导出 Markdown」一致;导入后为草稿,需在「草稿」Tab 审核</div></template>
+            </el-upload>
+            <div v-if="importResult" class="mt-3">
+                <el-alert :title="`成功 ${importResult.imported} / ${importResult.total} 条,失败 ${importResult.failed} 条`"
+                          :type="importResult.failed > 0 ? 'warning' : 'success'" :closable="false" />
+                <div v-if="importResult.failures?.length" class="mt-2 max-h-40 overflow-auto text-sm text-red-500">
+                    <div v-for="(f, i) in importResult.failures" :key="i">第 {{ f.index }} 条:{{ f.reason }}</div>
+                </div>
+            </div>
+            <template #footer>
+                <el-button @click="closeImportDialog">取消</el-button>
+                <el-button type="primary" :loading="importing" @click="handleConfirmImport">开始导入</el-button>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
 <script setup>
-import { ArrowDown, DocumentChecked, Download, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, DocumentChecked, Download, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { MEMORY_TRACK_EVENTS } from '~/config/tracker'
 import { MEMORY_FLYWHEEL_STEPS } from '~/constants/pageEmptyState'
@@ -178,7 +200,7 @@ import {
     MEMORY_TYPE_FILTER_ALL,
     MEMORY_TYPE_FILTER_OPTIONS,
 } from '~/constants/knowledge'
-import { exportKnowledgeMarkdown } from '~/services/knowledge.service'
+import { exportKnowledgeMarkdown, importKnowledgeMarkdown } from '~/services/knowledge.service'
 import { downloadTextFile } from '~/utils/fileDownload'
 
 definePageMeta({
@@ -216,6 +238,34 @@ const {
 const memoryFlywheelSteps = MEMORY_FLYWHEEL_STEPS
 
 const exporting = ref(false)
+
+const importDialogVisible = ref(false)
+const importing = ref(false)
+const importResult = ref(null)
+const pendingFile = ref(null)
+
+async function handleImportFileChange(uploadFile) {
+  pendingFile.value = uploadFile?.raw || null
+}
+async function handleConfirmImport() {
+  if (!pendingFile.value) { ElMessage.warning('请先选择文件'); return }
+  try {
+    importing.value = true
+    const result = await importKnowledgeMarkdown(pendingFile.value)
+    importResult.value = result
+    ElMessage.success(`导入完成:成功 ${result.imported} 条,失败 ${result.failed} 条`)
+    await loadList()
+  } catch (e) {
+    ElMessage.error(e?.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
+function closeImportDialog() {
+  importDialogVisible.value = false
+  pendingFile.value = null
+  importResult.value = null
+}
 
 /** 新建类型下拉选项（不含「全部」） */
 const createTypeOptions = [

@@ -205,3 +205,24 @@ export async function exportKnowledgeMarkdown(knowledgeType = 'all') {
   }
   return response.text()
 }
+
+/**
+ * 批量导入经验（Markdown -> 草稿）：multipart file 上传，绕过 apiRequest（其设了 Content-Type: application/json）
+ * 不要手动设 Content-Type，浏览器会自动带 multipart/form-data; boundary=...
+ */
+export async function importKnowledgeMarkdown(file) {
+  const runtimeConfig = useRuntimeConfig()
+  const token = getStoredToken()
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(`${runtimeConfig.public.apiBase}/knowledge/import`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form
+  })
+  const result = await response.json()
+  if (result.code !== 0) {
+    throw new Error(result.message || '导入失败')
+  }
+  return result.data
+}
