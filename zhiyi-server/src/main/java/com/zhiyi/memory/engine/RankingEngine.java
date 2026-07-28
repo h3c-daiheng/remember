@@ -11,9 +11,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -25,6 +27,13 @@ public class RankingEngine {
 
     /** 相似度低于该阈值时线性压制 typeBoost */
     private static final double TYPE_BOOST_SIMILARITY_FLOOR = 0.25D;
+
+    /** 可靠性档位序值：0 可靠 / 1 存疑 / 2 低置信 */
+    private static final int LEVEL_RELIABLE = 0;
+
+    private static final int LEVEL_UNCERTAIN = 1;
+
+    private static final int LEVEL_LOW = 2;
 
     private final MemoryFeedbackMapper memoryFeedbackMapper;
 
@@ -222,6 +231,91 @@ public class RankingEngine {
     }
 
     /**
+     * 可靠性评估：基于排序因子的可靠性维度（feedback/freshness/trust）做短板三档判定。
+     * 与 finalScore 解耦——finalScore 衡量"相关性+可靠性"混合排序强度，
+     * reliability 只反映经验自身可信度，供 Agent 决定是否需结合代码核实。
+     */
+    public ReliabilityResult calculateReliability(Map<String, Double> breakdown, String knowledgeType) {
+        int worstLevel = LEVEL_RELIABLE;
+        List<String> reasons = new ArrayList<String>();
+
+        double feedback = readFactor(breakdown, "feedback");
+        int feedbackLevel = levelOfFeedback(feedback);
+        if (feedbackLevel > LEVEL_RELIABLE) {
+            reasons.add(String.format(Locale.ROOT, "feedback=%.2f", feedback));
+        }
+        worstLevel = Math.max(worstLevel, feedbackLevel);
+
+        double freshness = readFactor(breakdown, "freshness");
+        int freshnessLevel = levelOfFreshness(freshness);
+        if (freshnessLevel > LEVEL_RELIABLE) {
+            reasons.add(String.format(Locale.ROOT, "freshness=%.2f", freshness));
+        }
+        worstLevel = Math.max(worstLevel, freshnessLevel);
+
+        double trust = readFactor(breakdown, "trust");
+        int trustLevel = levelOfTrust(trust);
+        if (trustLevel > LEVEL_RELIABLE) {
+            reasons.add(String.format(Locale.ROOT, "trust=%.2f", trust));
+        }
+        worstLevel = Math.max(worstLevel, trustLevel);
+
+        if (MemoryConstants.KNOWLEDGE_TYPE_EXPERIENCE.equals(knowledgeType)) {
+            reasons.add("experience 类型，建议核实");
+        }
+
+        return new ReliabilityResult(levelToName(worstLevel), reasons);
+    }
+
+    private double readFactor(Map<String, Double> breakdown, String key) {
+        if (breakdown == null) {
+            return 0D;
+        }
+        Double value = breakdown.get(key);
+        return value == null ? 0D : value.doubleValue();
+    }
+
+    private int levelOfFeedback(double value) {
+        if (value < MemoryConstants.RELIABILITY_FEEDBACK_UNCERTAIN) {
+            return LEVEL_LOW;
+        }
+        if (value < MemoryConstants.RELIABILITY_FEEDBACK_RELIABLE) {
+            return LEVEL_UNCERTAIN;
+        }
+        return LEVEL_RELIABLE;
+    }
+
+    private int levelOfFreshness(double value) {
+        if (value < MemoryConstants.RELIABILITY_FRESHNESS_UNCERTAIN) {
+            return LEVEL_LOW;
+        }
+        if (value < MemoryConstants.RELIABILITY_FRESHNESS_RELIABLE) {
+            return LEVEL_UNCERTAIN;
+        }
+        return LEVEL_RELIABLE;
+    }
+
+    private int levelOfTrust(double value) {
+        if (value < MemoryConstants.RELIABILITY_TRUST_UNCERTAIN) {
+            return LEVEL_LOW;
+        }
+        if (value < MemoryConstants.RELIABILITY_TRUST_RELIABLE) {
+            return LEVEL_UNCERTAIN;
+        }
+        return LEVEL_RELIABLE;
+    }
+
+    private String levelToName(int level) {
+        if (level == LEVEL_LOW) {
+            return MemoryConstants.RELIABILITY_LOW;
+        }
+        if (level == LEVEL_UNCERTAIN) {
+            return MemoryConstants.RELIABILITY_UNCERTAIN;
+        }
+        return MemoryConstants.RELIABILITY_RELIABLE;
+    }
+
+    /**
      * 排序得分封装
      */
     public static class RankingScore {
@@ -244,6 +338,40 @@ public class RankingEngine {
 
         public void setBreakdown(Map<String, Double> breakdown) {
             this.breakdown = breakdown;
+        }
+    }
+
+    /**
+     * 可靠性评估结果：档位 + 触发降档的因子说明
+     */
+    public static class ReliabilityResult {
+
+        private String level;
+
+        private List<String> reasons;
+
+        public ReliabilityResult() {
+        }
+
+        public ReliabilityResult(String level, List<String> reasons) {
+            this.level = level;
+            this.reasons = reasons;
+        }
+
+        public String getLevel() {
+            return level;
+        }
+
+        public void setLevel(String level) {
+            this.level = level;
+        }
+
+        public List<String> getReasons() {
+            return reasons;
+        }
+
+        public void setReasons(List<String> reasons) {
+            this.reasons = reasons;
         }
     }
 }

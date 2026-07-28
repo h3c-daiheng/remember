@@ -136,7 +136,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
         {
             name: 'memory_recall',
-            description: '根据任务上下文召回相关经验 Fact Blocks',
+            description:
+                '根据任务上下文召回相关经验 Fact Blocks。每条返回 reliability 档位：'
+                + 'reliable 可直接采纳；uncertain 须结合代码核实后再用；low 仅作线索必须验证。'
+                + '核实通过请调 memory_feedback 回填 helpful，不符回填 outdated/wrong，使用后回填 used。',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -226,7 +229,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
         {
             name: 'memory_feedback',
-            description: '对 Recall 结果提交效果反馈',
+            description:
+                '对 Recall 结果提交效果反馈。uncertain/low 档经验结合代码核实后：'
+                + '通过则回填 helpful（提升该经验置信度），不符回填 outdated/wrong（降权并可能触发治理工单）；'
+                + 'reliable 档采纳使用后回填 used。feedbackType：used/helpful/not_helpful/outdated/wrong。',
             inputSchema: {
                 type: 'object',
                 properties: {
