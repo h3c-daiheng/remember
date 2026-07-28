@@ -47,7 +47,7 @@ class KnowledgeMarkdownSerializerTest {
 
         assertTrue(md.contains("title: \"如何处理 504 超时\""), md);
         assertTrue(md.contains("knowledgeType: experience"), md);
-        assertTrue(md.contains("tags: [\"memory\", \"timeout\"]"), md);
+        assertTrue(md.contains("tags: [\"memory\",\"timeout\"]"), md);
         assertTrue(md.contains("### observation"), md);
         assertTrue(md.contains("调用模型网关偶发 504"), md);
         assertTrue(md.contains("### action"), md);

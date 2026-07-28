@@ -43,7 +43,7 @@ public final class KnowledgeMarkdownSerializer {
         sb.append("repository: ").append(safe(agg.getRepository())).append("\n");
         sb.append("language: ").append(safe(agg.getLanguage())).append("\n");
         sb.append("framework: ").append(safe(agg.getFramework())).append("\n");
-        sb.append("tags: ").append(agg.getTags() == null ? "[]" : JSONUtil.toJsonStr(agg.getTags()).replace("\",\"", "\", \"")).append("\n");
+        sb.append("tags: ").append(agg.getTags() == null ? "[]" : JSONUtil.toJsonStr(agg.getTags())).append("\n");
         sb.append("lifecycleStatus: ").append(agg.getLifecycleStatus() == null ? 1 : agg.getLifecycleStatus()).append("\n");
         sb.append("---\n\n");
 
