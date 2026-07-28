@@ -8,6 +8,7 @@ import {
     canManageApiKey,
     canManageWorkspace,
     getMemberRoleLabel,
+    isWorkspaceOwner,
 } from '~/constants/workspace'
 import { getStoredToken } from '~/utils/token'
 
@@ -31,6 +32,8 @@ export function useWorkspacePermission() {
     const canAccessSettings = computed(() => canAccessWorkspaceSettings(memberRole.value))
     /** 邀请成员（对齐主站） */
     const canInvite = computed(() => canInviteMember(memberRole.value))
+    /** 删除工作空间（仅 owner） */
+    const canDeleteWorkspace = computed(() => isWorkspaceOwner(memberRole.value))
 
     /** 页面挂载时若角色未就绪，补拉智忆登录上下文 */
     onMounted(async () => {
@@ -58,6 +61,7 @@ export function useWorkspacePermission() {
         canManageKey,
         canAccessSettings,
         canInvite,
+        canDeleteWorkspace,
         syncing,
     }
 }
