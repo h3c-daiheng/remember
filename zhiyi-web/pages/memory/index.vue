@@ -77,6 +77,9 @@
                         <el-button @click="importDialogVisible = true" :disabled="!canEdit">
                             <el-icon class="mr-1"><UploadFilled /></el-icon>批量导入
                         </el-button>
+                        <el-button v-if="selectedIds.length" type="danger" plain :loading="batchDeleting" @click="handleBatchDelete">
+                            批量删除({{ selectedIds.length }})
+                        </el-button>
                     </template>
                 </KnowledgeListToolbar>
             </div>
@@ -153,6 +156,9 @@
                 :knowledge="item"
                 :show-type-badge="true"
                 :show-lifecycle-badge="activeTab === 'deprecated'"
+                :selectable="canManage"
+                :selected="selectedIds.includes(item.id)"
+                @select="onCardSelect"
             />
         </div>
 
@@ -190,7 +196,7 @@
 
 <script setup>
 import { ArrowDown, DocumentChecked, Download, Plus, UploadFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { MEMORY_TRACK_EVENTS } from '~/config/tracker'
 import { MEMORY_FLYWHEEL_STEPS } from '~/constants/pageEmptyState'
 import {
@@ -200,7 +206,7 @@ import {
     MEMORY_TYPE_FILTER_ALL,
     MEMORY_TYPE_FILTER_OPTIONS,
 } from '~/constants/knowledge'
-import { exportKnowledgeMarkdown, importKnowledgeMarkdown } from '~/services/knowledge.service'
+import { exportKnowledgeMarkdown, importKnowledgeMarkdown, batchDeleteKnowledge } from '~/services/knowledge.service'
 import { downloadTextFile } from '~/utils/fileDownload'
 
 definePageMeta({
@@ -233,7 +239,38 @@ const {
     search,
     switchTypeFilter,
     switchTab,
+    selectedIds,
+    toggleSelect,
+    clearSelection,
 } = useMemoryList()
+
+const { canManage } = useWorkspacePermission()
+const batchDeleting = ref(false)
+
+function onCardSelect({ id, checked }) {
+    toggleSelect(id, checked)
+}
+
+async function handleBatchDelete() {
+    if (!selectedIds.value.length) return
+    try {
+        await ElMessageBox.confirm(`确认删除选中的 ${selectedIds.value.length} 条?`, '批量删除', {
+            type: 'error', confirmButtonText: '确认删除', cancelButtonText: '取消',
+        })
+    } catch (e) {
+        return // 用户取消
+    }
+    try {
+        batchDeleting.value = true
+        const result = await batchDeleteKnowledge([...selectedIds.value])
+        ElMessage.success(`已删除 ${result.deleted} 条,失败 ${result.failed} 条`)
+        await loadList()
+    } catch (e) {
+        ElMessage.error(e?.message || '批量删除失败')
+    } finally {
+        batchDeleting.value = false
+    }
+}
 
 const memoryFlywheelSteps = MEMORY_FLYWHEEL_STEPS
 

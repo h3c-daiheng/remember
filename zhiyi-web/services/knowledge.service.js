@@ -226,3 +226,13 @@ export async function importKnowledgeMarkdown(file) {
   }
   return result.data
 }
+
+/**
+ * 批量删除知识：body { ids }，后端逐条校验权限并返回 { deleted, failed, failures }
+ */
+export function batchDeleteKnowledge(ids) {
+  return apiRequest('/knowledge/batch', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+}
