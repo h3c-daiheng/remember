@@ -16,6 +16,7 @@ import com.zhiyi.memory.domain.ArtifactDto;
 import com.zhiyi.memory.domain.FactBlock;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
 import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
+import com.zhiyi.memory.domain.KnowledgeBatchPublishResult;
 import com.zhiyi.memory.domain.KnowledgeDraftContent;
 import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
@@ -459,6 +460,34 @@ public class KnowledgeService {
         knowledgeMapper.updateById(entity);
         indexKnowledge(knowledgeId);
         knowledgeTimelineService.recordPublish(knowledgeId, workspaceId, operatorUserId);
+    }
+
+    /**
+     * 批量发布知识:逐条通过 self 代理调用 publish,各自独立原子事务;逐条
+     * BusinessException 计入 failure 不阻塞;非 BusinessException 中止时已发布条目因独立事务保持完整。
+     * 注意:本方法不加 @Transactional,否则整批会并入一个事务,违背"逐条独立"的语义;
+     * 同时若加事务,内部 self.publish 的 REQUIRED 传播会并入外层,丧失逐条原子性。
+     */
+    public KnowledgeBatchPublishResult publishByIds(List<Long> ids, String workspaceId,
+                                                     Long operatorUserId, String memberRole) {
+        requireWorkspaceId(workspaceId);
+        KnowledgeBatchPublishResult result = new KnowledgeBatchPublishResult();
+        if (ids == null) {
+            return result;
+        }
+        result.setTotal(ids.size());
+        for (Long id : ids) {
+            try {
+                // 通过 self 代理调用,使 publish 上的 @Transactional 经代理生效;
+                // 因 publishByIds 无外层事务,REQUIRED 传播为每条开独立事务,单条更新+索引+时间线原子。
+                self.publish(id, workspaceId, operatorUserId, memberRole);
+                result.setPublished(result.getPublished() + 1);
+            } catch (BusinessException e) {
+                result.getFailures().add(new KnowledgeBatchPublishResult.Failure(id, e.getMessage()));
+            }
+        }
+        result.setFailed(result.getFailures().size());
+        return result;
     }
 
     /**

@@ -236,3 +236,13 @@ export function batchDeleteKnowledge(ids) {
     body: JSON.stringify({ ids }),
   })
 }
+
+/**
+ * 批量发布草稿：body { ids }，后端逐条校验权限并返回 { published, failed, failures }
+ */
+export function batchPublishKnowledge(ids) {
+  return apiRequest('/knowledge/batch/publish', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
+}

@@ -14,6 +14,7 @@ import com.zhiyi.domain.vo.KnowledgeTimelineItemVO;
 import com.zhiyi.domain.vo.LoginUserVO;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
 import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
+import com.zhiyi.memory.domain.KnowledgeBatchPublishResult;
 import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.knowledge.KnowledgeRelatedService;
@@ -276,9 +277,21 @@ public class KnowledgeController {
      */
     @DeleteMapping("/batch")
     public Result<KnowledgeBatchDeleteResult> deleteBatch(
-            @RequestBody BatchDeleteRequest batchRequest, HttpServletRequest request) {
+            @RequestBody BatchIdsRequest batchRequest, HttpServletRequest request) {
         LoginUserVO loginUser = LoginContext.requireLoginUser(request);
         return Result.success(knowledgeService.deleteByIds(
+                batchRequest.getIds(), requireWorkspaceId(loginUser),
+                loginUser.getUserId(), loginUser.getMemberRole()));
+    }
+
+    /**
+     * 批量发布草稿；编辑角色可发布任意草稿，发布者可发布本人创建的草稿，逐条独立事务
+     */
+    @PostMapping("/batch/publish")
+    public Result<KnowledgeBatchPublishResult> publishBatch(
+            @RequestBody BatchIdsRequest batchRequest, HttpServletRequest request) {
+        LoginUserVO loginUser = LoginContext.requireLoginUser(request);
+        return Result.success(knowledgeService.publishByIds(
                 batchRequest.getIds(), requireWorkspaceId(loginUser),
                 loginUser.getUserId(), loginUser.getMemberRole()));
     }
@@ -323,10 +336,10 @@ public class KnowledgeController {
     }
 
     /**
-     * 批量删除请求体
+     * 批量操作请求体（删除 / 发布共用，仅传 ids）
      */
     @Data
-    public static class BatchDeleteRequest {
+    public static class BatchIdsRequest {
         private List<Long> ids;
     }
 }

@@ -367,6 +367,22 @@ export function resolveKnowledgeDetailPath(knowledgeType, knowledgeId) {
 }
 
 /**
+ * 解析草稿编辑页路由（可编辑/发布/删除）；workflow 复用 rule 草稿编辑页，与详情页路由保持一致
+ */
+export function resolveKnowledgeDraftEditPath(knowledgeType, knowledgeId) {
+    switch (knowledgeType) {
+        case KNOWLEDGE_TYPES.RULE:
+        case KNOWLEDGE_TYPES.WORKFLOW:
+            return `/rule/drafts/${knowledgeId}`
+        case KNOWLEDGE_TYPES.DECISION:
+            return `/decision/drafts/${knowledgeId}`
+        case KNOWLEDGE_TYPES.EXPERIENCE:
+        default:
+            return `/experience/drafts/${knowledgeId}`
+    }
+}
+
+/**
  * 解析记忆中心列表页路由（详情/草稿页返回列表时使用）
  * @param {string} [knowledgeType] experience / rule / workflow / decision
  * @param {string} [tab] published / deprecated

@@ -77,6 +77,9 @@
                         <el-button @click="importDialogVisible = true" :disabled="!canEdit">
                             <el-icon class="mr-1"><UploadFilled /></el-icon>批量导入
                         </el-button>
+                        <el-button v-if="activeTab === 'draft' && selectedIds.length" type="primary" :loading="batchPublishing" @click="handleBatchPublish">
+                            批量发布({{ selectedIds.length }})
+                        </el-button>
                         <el-button v-if="selectedIds.length" type="danger" plain :loading="batchDeleting" @click="handleBatchDelete">
                             批量删除({{ selectedIds.length }})
                         </el-button>
@@ -92,6 +95,7 @@
             @tab-change="handleTabChange"
         >
             <el-tab-pane label="已发布" name="published" />
+            <el-tab-pane label="草稿" name="draft" />
             <el-tab-pane label="已失效" name="deprecated" />
         </el-tabs>
 
@@ -147,6 +151,36 @@
                     </template>
                 </el-dropdown>
             </template>
+            <template v-else-if="activeTab === 'draft' && canEdit">
+                <el-button type="primary" @click="importDialogVisible = true">
+                    <el-icon class="mr-1"><UploadFilled /></el-icon>
+                    批量导入
+                </el-button>
+                <el-button v-if="showSingleCreateButton" @click="handleCreate">
+                    {{ createButtonLabel }}
+                </el-button>
+                <el-dropdown
+                    v-else
+                    trigger="click"
+                    @command="handleCreateByType"
+                >
+                    <el-button>
+                        新建记忆
+                        <el-icon class="ml-1"><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                        <el-dropdown-menu>
+                            <el-dropdown-item
+                                v-for="option in createTypeOptions"
+                                :key="option.value"
+                                :command="option.value"
+                            >
+                                {{ option.label }}
+                            </el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
+            </template>
         </PageEmptyState>
 
         <div v-else class="space-y-3">
@@ -155,7 +189,7 @@
                 :key="item.id"
                 :knowledge="item"
                 :show-type-badge="true"
-                :show-lifecycle-badge="activeTab === 'deprecated'"
+                :show-lifecycle-badge="activeTab !== 'published'"
                 :selectable="canManage"
                 :selected="selectedIds.includes(item.id)"
                 @select="onCardSelect"
@@ -179,6 +213,14 @@
                 <div class="el-upload__text">拖拽或点击选择 .md 文件</div>
                 <template #tip><div class="el-upload__tip text-center">格式须与「导出 Markdown」一致;导入后为草稿,需在「草稿」Tab 审核</div></template>
             </el-upload>
+            <div v-if="pendingFile" class="mt-3 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    <el-icon class="text-gray-400 shrink-0"><Document /></el-icon>
+                    <span class="text-sm text-gray-700 truncate">{{ pendingFile.name }}</span>
+                    <span v-if="pendingFile.size" class="text-xs text-gray-400 shrink-0">{{ formatFileSize(pendingFile.size) }}</span>
+                </div>
+                <el-button text size="small" :disabled="importing" @click="clearPendingFile">移除</el-button>
+            </div>
             <div v-if="importResult" class="mt-3">
                 <el-alert :title="`成功 ${importResult.imported} / ${importResult.total} 条,失败 ${importResult.failed} 条`"
                           :type="importResult.failed > 0 ? 'warning' : 'success'" :closable="false" />
@@ -195,7 +237,7 @@
 </template>
 
 <script setup>
-import { ArrowDown, DocumentChecked, Download, Plus, UploadFilled } from '@element-plus/icons-vue'
+import { ArrowDown, Document, DocumentChecked, Download, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MEMORY_TRACK_EVENTS } from '~/config/tracker'
 import { MEMORY_FLYWHEEL_STEPS } from '~/constants/pageEmptyState'
@@ -206,7 +248,7 @@ import {
     MEMORY_TYPE_FILTER_ALL,
     MEMORY_TYPE_FILTER_OPTIONS,
 } from '~/constants/knowledge'
-import { exportKnowledgeMarkdown, importKnowledgeMarkdown, batchDeleteKnowledge } from '~/services/knowledge.service'
+import { exportKnowledgeMarkdown, importKnowledgeMarkdown, batchDeleteKnowledge, batchPublishKnowledge } from '~/services/knowledge.service'
 import { downloadTextFile } from '~/utils/fileDownload'
 
 definePageMeta({
@@ -246,6 +288,7 @@ const {
 
 const { canManage } = useWorkspacePermission()
 const batchDeleting = ref(false)
+const batchPublishing = ref(false)
 
 function onCardSelect({ id, checked }) {
     toggleSelect(id, checked)
@@ -272,6 +315,27 @@ async function handleBatchDelete() {
     }
 }
 
+async function handleBatchPublish() {
+    if (!selectedIds.value.length) return
+    try {
+        await ElMessageBox.confirm(`确认发布选中的 ${selectedIds.value.length} 条草稿?`, '批量发布', {
+            type: 'warning', confirmButtonText: '确认发布', cancelButtonText: '取消',
+        })
+    } catch (e) {
+        return // 用户取消
+    }
+    try {
+        batchPublishing.value = true
+        const result = await batchPublishKnowledge([...selectedIds.value])
+        ElMessage.success(`已发布 ${result.published} 条,失败 ${result.failed} 条`)
+        await loadList()
+    } catch (e) {
+        ElMessage.error(e?.message || '批量发布失败')
+    } finally {
+        batchPublishing.value = false
+    }
+}
+
 const memoryFlywheelSteps = MEMORY_FLYWHEEL_STEPS
 
 const exporting = ref(false)
@@ -284,6 +348,15 @@ const pendingFile = ref(null)
 async function handleImportFileChange(uploadFile) {
   pendingFile.value = uploadFile?.raw || null
 }
+function clearPendingFile() {
+  pendingFile.value = null
+}
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 async function handleConfirmImport() {
   if (!pendingFile.value) { ElMessage.warning('请先选择文件'); return }
   try {
@@ -291,7 +364,12 @@ async function handleConfirmImport() {
     const result = await importKnowledgeMarkdown(pendingFile.value)
     importResult.value = result
     ElMessage.success(`导入完成:成功 ${result.imported} 条,失败 ${result.failed} 条`)
-    await loadList()
+    // 导入为草稿：切到「草稿」Tab 让用户审核发布；当前类型不显示草稿 Tab 时先切到「全部」
+    if (!showDeprecatedTab.value) {
+      await switchTypeFilter(MEMORY_TYPE_FILTER_ALL)
+    }
+    await switchTab('draft')
+    syncRouteQuery()
   } catch (e) {
     ElMessage.error(e?.message || '导入失败')
   } finally {
@@ -326,11 +404,16 @@ const createButtonLabel = computed(() => {
 
 const listCountLabel = computed(() => {
     if (typeFilter.value === MEMORY_TYPE_FILTER_ALL) {
-        return activeTab.value === 'deprecated' ? '已失效记忆' : '已发布记忆'
+        if (activeTab.value === 'deprecated') return '已失效记忆'
+        if (activeTab.value === 'draft') return '草稿记忆'
+        return '已发布记忆'
     }
     const typeLabel = KNOWLEDGE_TYPE_LABELS[typeFilter.value] || '记忆'
     if (activeTab.value === 'deprecated') {
         return `已失效${typeLabel}`
+    }
+    if (activeTab.value === 'draft') {
+        return `草稿${typeLabel}`
     }
     return typeLabel
 })
@@ -338,6 +421,9 @@ const listCountLabel = computed(() => {
 const emptyTitle = computed(() => {
     if (activeTab.value === 'deprecated') {
         return '暂无已失效记忆'
+    }
+    if (activeTab.value === 'draft') {
+        return '暂无待审核草稿'
     }
     if (typeFilter.value === MEMORY_TYPE_FILTER_ALL) {
         return '把团队知识沉淀成可复用记忆'
@@ -350,12 +436,18 @@ const emptySubtitle = computed(() => {
     if (activeTab.value === 'deprecated') {
         return '下架后的经验会集中在此，可随时查看详情并重新启用恢复 Recall'
     }
+    if (activeTab.value === 'draft') {
+        return '批量导入 Markdown 或新建记忆后，草稿会集中在此等待审核发布'
+    }
     return '从 Agent 自动采集到人工确认发布，形成可被 Recall 复用的结构化记忆'
 })
 
 const emptyTags = computed(() => {
     if (activeTab.value === 'deprecated') {
         return ['已失效', '重新启用', 'Recall 恢复', '历史追溯']
+    }
+    if (activeTab.value === 'draft') {
+        return ['批量导入', '草稿审核', '发布上线', 'Recall 索引']
     }
     if (typeFilter.value === KNOWLEDGE_TYPES.RULE || typeFilter.value === KNOWLEDGE_TYPES.WORKFLOW) {
         return ['规则 (Rule)', '流程 (Workflow)', 'Agent Recall', '规范约束']
@@ -370,6 +462,9 @@ const emptyGuide = computed(() => {
     if (activeTab.value === 'deprecated') {
         return '在记忆详情页点击「重新启用」，即可恢复为已发布并重新进入 Agent 召回'
     }
+    if (activeTab.value === 'draft') {
+        return '点击右上角「批量导入」上传 Markdown，或「新建记忆」撰写草稿，审核发布后即进入 Recall'
+    }
     return 'Agent 草稿请在草稿确认页审核发布；人工撰写可点击「新建记忆」'
 })
 
@@ -380,8 +475,8 @@ function syncRouteQuery() {
     } else {
         query.type = typeFilter.value
     }
-    if (showDeprecatedTab.value && activeTab.value === 'deprecated') {
-        query.tab = 'deprecated'
+    if (showDeprecatedTab.value && activeTab.value !== 'published') {
+        query.tab = activeTab.value
     } else {
         delete query.tab
     }
@@ -453,7 +548,7 @@ onMounted(async () => {
         typeFilter.value = queryType
     }
 
-    if (queryTab === 'deprecated' || queryTab === 'published') {
+    if (queryTab === 'deprecated' || queryTab === 'published' || queryTab === 'draft') {
         activeTab.value = queryTab
     }
 

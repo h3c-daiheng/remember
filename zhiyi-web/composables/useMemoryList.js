@@ -1,5 +1,5 @@
 /**
- * 记忆中心列表页业务逻辑：全类型 / 单类型筛选、已发布 / 已失效 Tab、分页与搜索
+ * 记忆中心列表页业务逻辑：全类型 / 单类型筛选、已发布 / 草稿 / 已失效 Tab、分页与搜索
  */
 import { fetchKnowledgeList } from '~/services/knowledge.service'
 import {
@@ -23,10 +23,13 @@ export function useMemoryList() {
         if (activeTab.value === 'deprecated') {
             return KNOWLEDGE_LIFECYCLE.DEPRECATED
         }
+        if (activeTab.value === 'draft') {
+            return KNOWLEDGE_LIFECYCLE.DRAFT
+        }
         return KNOWLEDGE_LIFECYCLE.PUBLISHED
     })
 
-    /** 已失效 Tab 仅对经验或全部类型有意义 */
+    /** 已失效 / 草稿 Tab 仅对经验或全部类型有意义（导入草稿在「全部」下也可见） */
     const showDeprecatedTab = computed(() =>
         typeFilter.value === MEMORY_TYPE_FILTER_ALL
         || typeFilter.value === KNOWLEDGE_TYPES.EXPERIENCE,
@@ -83,11 +86,11 @@ export function useMemoryList() {
         return loadList()
     }
 
-    /** 切换类型筛选，非经验类型时自动退出已失效 Tab */
+    /** 切换类型筛选，非经验类型时自动退出已失效 / 草稿 Tab */
     function switchTypeFilter(nextType) {
         typeFilter.value = nextType
         if (
-            activeTab.value === 'deprecated'
+            (activeTab.value === 'deprecated' || activeTab.value === 'draft')
             && nextType !== MEMORY_TYPE_FILTER_ALL
             && nextType !== KNOWLEDGE_TYPES.EXPERIENCE
         ) {

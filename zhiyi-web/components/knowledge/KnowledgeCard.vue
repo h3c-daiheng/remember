@@ -87,10 +87,15 @@
 import { ArrowRight, DataLine } from '@element-plus/icons-vue'
 import {
     getKnowledgeTypeTheme,
+    KNOWLEDGE_LIFECYCLE,
     KNOWLEDGE_LIFECYCLE_LABELS,
     KNOWLEDGE_TYPE_LABELS,
 } from '~/constants/knowledge'
-import { formatDateTime, resolveKnowledgeDetailPath } from '~/utils/knowledge'
+import {
+    formatDateTime,
+    resolveKnowledgeDetailPath,
+    resolveKnowledgeDraftEditPath,
+} from '~/utils/knowledge'
 
 const props = defineProps({
     knowledge: {
@@ -131,10 +136,13 @@ function onCheckboxChange(val) {
     emit('select', { id: props.knowledge.id, checked: val })
 }
 
-/** 详情页路由 */
+/** 详情页路由：草稿跳草稿编辑页（可编辑/发布/删除），已发布/已失效跳详情页 */
 const detailPath = computed(() => {
     if (props.detailBasePath) {
         return `${props.detailBasePath}/${props.knowledge.id}`
+    }
+    if (props.knowledge.lifecycleStatus === KNOWLEDGE_LIFECYCLE.DRAFT) {
+        return resolveKnowledgeDraftEditPath(props.knowledge.knowledgeType, props.knowledge.id)
     }
     return resolveKnowledgeDetailPath(props.knowledge.knowledgeType, props.knowledge.id)
 })
