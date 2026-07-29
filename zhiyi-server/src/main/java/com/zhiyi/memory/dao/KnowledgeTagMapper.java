@@ -35,6 +35,11 @@ public interface KnowledgeTagMapper {
     @Delete("DELETE FROM knowledge_tag WHERE knowledge_id = #{knowledgeId}")
     int deleteByKnowledgeId(@Param("knowledgeId") Long knowledgeId);
 
+    /** 物理删除工作空间下全部知识标签(通过 knowledge 子查询) */
+    @Delete("DELETE FROM knowledge_tag WHERE knowledge_id IN "
+            + "(SELECT id FROM knowledge WHERE workspace_id = #{workspaceId})")
+    int deleteByWorkspace(@Param("workspaceId") String workspaceId);
+
     /**
      * 插入单条标签
      */

@@ -45,6 +45,9 @@
                 <el-dropdown-item command="settings">
                     工作空间设置
                 </el-dropdown-item>
+                <el-dropdown-item divided command="delete" :disabled="!canDeleteWorkspace">
+                    删除当前工作空间
+                </el-dropdown-item>
             </el-dropdown-menu>
         </template>
     </el-dropdown>
@@ -68,10 +71,12 @@
 
 <script setup>
 import { ArrowDown, Check } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { openGonlineWorkspaceSettings } from '~/utils/gonlineAuthLogin'
 
-const { currentWorkspace, workspaceList, loadWorkspaceList, switchWorkspace, createWorkspace } = useWorkspace()
+const { currentWorkspace, workspaceList, loadWorkspaceList, switchWorkspace, createWorkspace, deleteWorkspace } = useWorkspace()
+const { canDeleteWorkspace } = useWorkspacePermission()
+const deleting = ref(false)
 
 const switching = ref(false)
 const workspaceListLoaded = ref(false)
@@ -103,6 +108,10 @@ async function handleSwitch(command) {
     }
     if (command === 'create') {
         openCreateDialog()
+        return
+    }
+    if (command === 'delete') {
+        openDeleteConfirm()
         return
     }
     if (switching.value) {
@@ -144,6 +153,40 @@ async function submitCreate() {
         ElMessage.error(error.message || '创建失败')
     } finally {
         creating.value = false
+    }
+}
+
+async function openDeleteConfirm() {
+    const wsName = currentWorkspace.value?.workspaceName || ''
+    const wsId = currentWorkspace.value?.workspaceId
+    if (!wsId) {
+        return
+    }
+    try {
+        const { value } = await ElMessageBox.prompt(
+            `此操作不可恢复,将永久删除工作空间「${wsName}」及其下全部知识、规则、草稿、API Key。\n请输入工作空间名称「${wsName}」以确认:`,
+            '删除工作空间',
+            {
+                confirmButtonText: '确认删除',
+                cancelButtonText: '取消',
+                type: 'error',
+                inputPlaceholder: wsName,
+                inputValidator: (v) => !!v && v.trim() !== '' || '请输入工作空间名称',
+            },
+        )
+        if (value.trim() !== wsName) {
+            ElMessage.error('输入的名称与工作空间名称不符,已取消')
+            return
+        }
+        deleting.value = true
+        await deleteWorkspace(wsId, value.trim())
+        ElMessage.success('工作空间已删除')
+    } catch (e) {
+        if (e !== 'cancel' && e?.message !== 'cancel') {
+            ElMessage.error(e?.message || '删除失败')
+        }
+    } finally {
+        deleting.value = false
     }
 }
 </script>

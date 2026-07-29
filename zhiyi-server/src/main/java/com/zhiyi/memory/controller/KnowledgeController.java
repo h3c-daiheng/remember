@@ -13,13 +13,17 @@ import com.zhiyi.domain.vo.KnowledgeSupersedeRequest;
 import com.zhiyi.domain.vo.KnowledgeTimelineItemVO;
 import com.zhiyi.domain.vo.LoginUserVO;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
+import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
+import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.knowledge.KnowledgeRelatedService;
 import com.zhiyi.memory.knowledge.KnowledgeRelationService;
 import com.zhiyi.memory.knowledge.KnowledgeService;
 import com.zhiyi.memory.graph.GraphGovernanceService;
 import com.zhiyi.memory.timeline.KnowledgeTimelineService;
+import com.zhiyi.memory.MemoryConstants;
 import com.zhiyi.workspace.WorkspaceMemberRole;
+import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,10 +34,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -74,6 +86,28 @@ public class KnowledgeController {
         LoginUserVO loginUser = LoginContext.requireLoginUser(request);
         return Result.success(knowledgeService.list(
                 pageNum, pageSize, keyword, knowledgeType, lifecycleStatus, requireWorkspaceId(loginUser)));
+    }
+
+    /**
+     * 导出当前工作空间已发布知识为 Markdown 文件下载
+     */
+    @GetMapping("/export")
+    public void export(@RequestParam(required = false) String knowledgeType,
+                       HttpServletRequest request,
+                       HttpServletResponse response) throws java.io.IOException {
+        LoginUserVO loginUser = LoginContext.requireLoginUser(request);
+        String workspaceId = requireWorkspaceId(loginUser);
+        String workspaceName = loginUser.getWorkspaceName() == null ? workspaceId : loginUser.getWorkspaceName();
+        String exportTime = new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date());
+        String markdown = knowledgeService.exportMarkdown(workspaceId, workspaceName, knowledgeType, exportTime);
+
+        String fileName = URLEncoder.encode(workspaceName + "-知识导出-"
+                + new SimpleDateFormat("yyyyMMdd").format(new Date()) + ".md", StandardCharsets.UTF_8.name());
+        response.setContentType("text/markdown; charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+        OutputStream os = response.getOutputStream();
+        os.write(markdown.getBytes(StandardCharsets.UTF_8));
+        os.flush();
     }
 
     /**
@@ -174,6 +208,25 @@ public class KnowledgeController {
     }
 
     /**
+     * 批量导入经验:上传 Markdown 文件,解析为草稿
+     */
+    @PostMapping("/import")
+    public Result<KnowledgeImportResult> doImport(
+            @RequestParam("file") MultipartFile file, HttpServletRequest request) throws IOException {
+        LoginUserVO loginUser = requireKnowledgeEditor(request);
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "导入文件为空");
+        }
+        long size = file.getSize();
+        if (size > MemoryConstants.IMPORT_MAX_CONTENT_LENGTH) {
+            throw new BusinessException(400, "导入文件超过大小上限 " + MemoryConstants.IMPORT_MAX_CONTENT_LENGTH + " 字节");
+        }
+        String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+        return Result.success(knowledgeService.importMarkdown(
+                content, loginUser.getUserId(), requireWorkspaceId(loginUser)));
+    }
+
+    /**
      * 更新经验内容；编辑角色可改任意经验，发布者可改本人创建的经验
      */
     @PutMapping("/{id}")
@@ -219,6 +272,18 @@ public class KnowledgeController {
     }
 
     /**
+     * 批量删除经验/规则
+     */
+    @DeleteMapping("/batch")
+    public Result<KnowledgeBatchDeleteResult> deleteBatch(
+            @RequestBody BatchDeleteRequest batchRequest, HttpServletRequest request) {
+        LoginUserVO loginUser = LoginContext.requireLoginUser(request);
+        return Result.success(knowledgeService.deleteByIds(
+                batchRequest.getIds(), requireWorkspaceId(loginUser),
+                loginUser.getUserId(), loginUser.getMemberRole()));
+    }
+
+    /**
      * 删除经验（逻辑删除）；管理者可删任意经验，其余角色仅可删本人创建的经验
      */
     @DeleteMapping("/{id}")
@@ -255,5 +320,13 @@ public class KnowledgeController {
             return Collections.emptyList();
         }
         return Arrays.asList(types.split(","));
+    }
+
+    /**
+     * 批量删除请求体
+     */
+    @Data
+    public static class BatchDeleteRequest {
+        private List<Long> ids;
     }
 }

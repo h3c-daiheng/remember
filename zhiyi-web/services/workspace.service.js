@@ -87,3 +87,10 @@ export async function createWorkspaceRequest(workspaceName, workspaceCode) {
         user: normalizeWorkspaceContextAsUser(data),
     }
 }
+
+export function deleteWorkspaceRequest(workspaceId, confirmName) {
+    return apiRequest(`/workspace/${workspaceId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmName }),
+    })
+}

@@ -15,7 +15,9 @@ import com.zhiyi.memory.dao.MemoryFeedbackMapper;
 import com.zhiyi.memory.domain.ArtifactDto;
 import com.zhiyi.memory.domain.FactBlock;
 import com.zhiyi.memory.domain.KnowledgeAggregate;
+import com.zhiyi.memory.domain.KnowledgeBatchDeleteResult;
 import com.zhiyi.memory.domain.KnowledgeDraftContent;
+import com.zhiyi.memory.domain.KnowledgeImportResult;
 import com.zhiyi.memory.domain.KnowledgeSaveRequest;
 import com.zhiyi.memory.entity.KnowledgeArtifactEntity;
 import com.zhiyi.memory.entity.KnowledgeEntity;
@@ -29,6 +31,8 @@ import com.zhiyi.memory.timeline.KnowledgeTimelineService;
 import com.zhiyi.memory.retrieval.RetrievalEngine;
 import org.springframework.context.annotation.Lazy;
 import com.zhiyi.domain.vo.UserProfileBrief;
+import com.zhiyi.memory.util.KnowledgeMarkdownParser;
+import com.zhiyi.memory.util.KnowledgeMarkdownSerializer;
 import com.zhiyi.memory.util.MemoryJsonUtil;
 import com.zhiyi.service.UserProfileService;
 import com.zhiyi.workspace.WorkspaceMemberRole;
@@ -62,6 +66,11 @@ public class KnowledgeService {
     private final KnowledgeTimelineService knowledgeTimelineService;
     private final CascadeValidationService cascadeValidationService;
     private final UserProfileService userProfileService;
+    /**
+     * 自注入代理引用:用于 {@code deleteByIds} 通过代理调用 {@code deleteKnowledge},
+     * 确保 {@code @Transactional} 在 Spring 默认代理模式下不因自调用而失效。
+     */
+    private final KnowledgeService self;
 
     public KnowledgeService(KnowledgeMapper knowledgeMapper,
                             KnowledgeFactMapper knowledgeFactMapper,
@@ -74,7 +83,8 @@ public class KnowledgeService {
                             RelationEngine relationEngine,
                             KnowledgeTimelineService knowledgeTimelineService,
                             CascadeValidationService cascadeValidationService,
-                            UserProfileService userProfileService) {
+                            UserProfileService userProfileService,
+                            @Lazy KnowledgeService self) {
         this.knowledgeMapper = knowledgeMapper;
         this.knowledgeFactMapper = knowledgeFactMapper;
         this.knowledgeArtifactMapper = knowledgeArtifactMapper;
@@ -87,6 +97,7 @@ public class KnowledgeService {
         this.knowledgeTimelineService = knowledgeTimelineService;
         this.cascadeValidationService = cascadeValidationService;
         this.userProfileService = userProfileService;
+        this.self = self;
     }
 
     /**
@@ -124,6 +135,32 @@ public class KnowledgeService {
         }
         enrichCreatorProfiles(aggregateList);
         return PageResult.of(pageInfo.getTotal(), aggregateList);
+    }
+
+    /**
+     * 导出当前工作空间已发布知识为 Markdown 字符串
+     *
+     * @param workspaceId   工作空间主键
+     * @param workspaceName 工作空间显示名(用于文件头)
+     * @param knowledgeType knowledgeType,null/"all" 表示全部四种类型
+     * @param exportTime    导出时间字符串(用于文件头)
+     */
+    public String exportMarkdown(String workspaceId, String workspaceName,
+                                 String knowledgeType, String exportTime) {
+        requireWorkspaceId(workspaceId);
+        LambdaQueryWrapper<KnowledgeEntity> wrapper = new LambdaQueryWrapper<KnowledgeEntity>();
+        wrapper.eq(KnowledgeEntity::getWorkspaceId, workspaceId);
+        wrapper.eq(KnowledgeEntity::getLifecycleStatus, MemoryConstants.LIFECYCLE_PUBLISHED);
+        if (StringUtils.isNotBlank(knowledgeType) && !"all".equals(knowledgeType)) {
+            wrapper.eq(KnowledgeEntity::getKnowledgeType, knowledgeType);
+        }
+        wrapper.orderByDesc(KnowledgeEntity::getUpdateTime);
+        List<KnowledgeEntity> entities = knowledgeMapper.selectList(wrapper);
+        List<KnowledgeAggregate> aggregates = new ArrayList<KnowledgeAggregate>();
+        for (KnowledgeEntity entity : entities) {
+            aggregates.add(loadAggregate(entity));
+        }
+        return KnowledgeMarkdownSerializer.serializeWorkspace(workspaceName, exportTime, aggregates);
     }
 
     /**
@@ -252,6 +289,40 @@ public class KnowledgeService {
     }
 
     /**
+     * 批量导入经验:解析 Markdown,逐条创建为草稿(不经 AI,不进 capture_draft)。
+     * 解析非法块计入 failures;创建阶段任一异常触发整批事务回滚。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public KnowledgeImportResult importMarkdown(String markdown, Long creatorId, String workspaceId) {
+        requireWorkspaceId(workspaceId);
+        if (creatorId == null) {
+            throw new BusinessException(400, "创建者不能为空");
+        }
+        List<String> blocks = KnowledgeMarkdownParser.splitBlocks(markdown);
+        KnowledgeImportResult result = new KnowledgeImportResult();
+        result.setTotal(blocks.size());
+
+        List<KnowledgeSaveRequest> parsed = new ArrayList<KnowledgeSaveRequest>();
+        for (int i = 0; i < blocks.size(); i++) {
+            String block = blocks.get(i);
+            try {
+                KnowledgeSaveRequest req = KnowledgeMarkdownParser.parseBlock(block);
+                parsed.add(req);
+            } catch (BusinessException e) {
+                result.getFailures().add(new KnowledgeImportResult.Failure(i + 1, null, e.getMessage()));
+            }
+        }
+
+        for (KnowledgeSaveRequest req : parsed) {
+            req.setPublish(false);
+            create(req, creatorId, workspaceId, null);
+            result.setImported(result.getImported() + 1);
+        }
+        result.setFailed(result.getFailures().size());
+        return result;
+    }
+
+    /**
      * 更新知识内容；编辑角色可改任意经验，发布者可改本人创建的经验
      */
     @Transactional(rollbackFor = Exception.class)
@@ -342,9 +413,39 @@ public class KnowledgeService {
     public void deleteKnowledge(Long knowledgeId, String workspaceId, Long operatorUserId, String memberRole) {
         KnowledgeEntity entity = requireKnowledgeInWorkspace(knowledgeId, workspaceId);
         requireDeletePermission(entity, operatorUserId, memberRole);
+        deleteChildren(knowledgeId);
         relationEngine.deleteRelationsByKnowledgeId(knowledgeId, workspaceId);
-        retrievalEngine.deleteByKnowledgeId(knowledgeId);
+        memoryFeedbackMapper.delete(new LambdaQueryWrapper<MemoryFeedbackEntity>()
+                .eq(MemoryFeedbackEntity::getKnowledgeId, knowledgeId));
         knowledgeMapper.deleteById(knowledgeId);
+    }
+
+    /**
+     * 批量删除知识:逐条通过 self 代理调用 deleteKnowledge,各自独立原子事务;逐条
+     * BusinessException 计入 failure 不阻塞;非 BusinessException 中止时已删条目因独立事务保持完整。
+     * 注意:本方法不加 @Transactional,否则整批会并入一个事务,违背"逐条独立"的语义;
+     * 同时若加事务,内部 self.deleteKnowledge 的 REQUIRED 传播会并入外层,丧失逐条原子性。
+     */
+    public KnowledgeBatchDeleteResult deleteByIds(List<Long> ids, String workspaceId,
+                                                  Long operatorUserId, String memberRole) {
+        requireWorkspaceId(workspaceId);
+        KnowledgeBatchDeleteResult result = new KnowledgeBatchDeleteResult();
+        if (ids == null) {
+            return result;
+        }
+        result.setTotal(ids.size());
+        for (Long id : ids) {
+            try {
+                // 通过 self 代理调用,使 deleteKnowledge 上的 @Transactional 经代理生效;
+                // 因 deleteByIds 无外层事务,REQUIRED 传播为每条开独立事务,单条 4 个写操作原子。
+                self.deleteKnowledge(id, workspaceId, operatorUserId, memberRole);
+                result.setDeleted(result.getDeleted() + 1);
+            } catch (BusinessException e) {
+                result.getFailures().add(new KnowledgeBatchDeleteResult.Failure(id, e.getMessage()));
+            }
+        }
+        result.setFailed(result.getFailures().size());
+        return result;
     }
 
     /**

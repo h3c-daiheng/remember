@@ -41,6 +41,11 @@ public class RecallEngine {
     /** 图谱扩展新增节点的默认相似度基线 */
     private static final double GRAPH_ONLY_SIMILARITY_BASE = 0.4D;
 
+    /** 召回 prompt 顶部的可靠性使用指引，引导 Agent 按档位处置并回填 feedback */
+    private static final String RELIABILITY_GUIDE =
+            "> 记忆可靠性分三档：🟢可靠可直接采纳；🟡存疑须结合代码核实后再用；🔴低置信仅作线索必须验证。\n"
+            + "> 核实通过请调 memory_feedback(knowledgeId, sessionId, \"helpful\")，不符调 \"outdated\"/\"wrong\"；采纳使用后调 \"used\"。";
+
     private final ContextNormalizer contextNormalizer;
     private final ContextQueryBuilder contextQueryBuilder;
     private final RetrievalEngine retrievalEngine;
@@ -248,6 +253,10 @@ public class RecallEngine {
             item.setArtifacts(aggregate.getArtifacts());
             item.setScore(scoredKnowledge.getScore());
             item.setScoreBreakdown(scoredKnowledge.getBreakdown());
+            RankingEngine.ReliabilityResult reliabilityResult = rankingEngine.calculateReliability(
+                    scoredKnowledge.getBreakdown(), aggregate.getKnowledgeType());
+            item.setReliability(reliabilityResult.getLevel());
+            item.setReliabilityReason(reliabilityResult.getReasons());
             itemList.add(item);
             count++;
         }
@@ -320,6 +329,7 @@ public class RecallEngine {
         }
 
         StringBuilder builder = new StringBuilder();
+        builder.append(RELIABILITY_GUIDE).append("\n\n");
         if (ruleSection.length() > 0) {
             builder.append("## 规则\n").append(ruleSection);
         }
@@ -337,6 +347,7 @@ public class RecallEngine {
 
     private String buildLegacyPromptBlock(List<RecallResponse.RecallItem> items) {
         StringBuilder builder = new StringBuilder();
+        builder.append(RELIABILITY_GUIDE).append("\n\n");
         for (RecallResponse.RecallItem item : items) {
             appendRecallItem(builder, item);
         }
@@ -345,6 +356,10 @@ public class RecallEngine {
 
     private void appendRecallItem(StringBuilder builder, RecallResponse.RecallItem item) {
         builder.append("### ").append(item.getTitle()).append("\n");
+        String reliabilityLine = buildReliabilityLine(item);
+        if (StringUtils.isNotBlank(reliabilityLine)) {
+            builder.append(reliabilityLine);
+        }
         if (item.getFacts() != null) {
             for (FactBlock factBlock : item.getFacts()) {
                 builder.append("- [").append(factBlock.getType()).append("] ")
@@ -352,6 +367,40 @@ public class RecallEngine {
             }
         }
         builder.append("\n");
+    }
+
+    /**
+     * 拼装可靠性标注行：档位 emoji + 降档原因 + 处置提示
+     */
+    private String buildReliabilityLine(RecallResponse.RecallItem item) {
+        String level = item.getReliability();
+        if (StringUtils.isBlank(level)) {
+            return "";
+        }
+        String emoji;
+        String label;
+        String action;
+        if (MemoryConstants.RELIABILITY_RELIABLE.equals(level)) {
+            emoji = "🟢";
+            label = "可靠";
+            action = "可直接采纳，用后反馈 used";
+        } else if (MemoryConstants.RELIABILITY_UNCERTAIN.equals(level)) {
+            emoji = "🟡";
+            label = "存疑";
+            action = "须结合代码核实，通过反馈 helpful，不符反馈 outdated/wrong";
+        } else {
+            emoji = "🔴";
+            label = "低置信";
+            action = "仅作线索必须验证，通过反馈 helpful，不符反馈 outdated/wrong";
+        }
+        StringBuilder line = new StringBuilder();
+        line.append("> 可靠度: ").append(emoji).append(" ").append(label);
+        List<String> reasons = item.getReliabilityReason();
+        if (reasons != null && !reasons.isEmpty()) {
+            line.append(" (").append(String.join(", ", reasons)).append(")");
+        }
+        line.append(" - ").append(action).append("\n");
+        return line.toString();
     }
 
     private String resolveKnowledgeType(RecallResponse.RecallItem item) {

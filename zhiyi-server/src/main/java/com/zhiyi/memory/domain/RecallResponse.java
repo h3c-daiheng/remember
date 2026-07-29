@@ -36,5 +36,11 @@ public class RecallResponse {
         private Double score;
 
         private Map<String, Double> scoreBreakdown;
+
+        /** 可靠性档位：reliable / uncertain / low */
+        private String reliability;
+
+        /** 触发降档的因子说明，供 Agent 判断为何存疑 */
+        private List<String> reliabilityReason;
     }
 }

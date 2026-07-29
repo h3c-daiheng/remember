@@ -32,7 +32,7 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { KNOWLEDGE_TYPE_LABELS, KNOWLEDGE_TYPES } from '~/constants/knowledge'
-import { publishKnowledge, updateKnowledge } from '~/services/knowledge.service'
+import { publishKnowledge, supersedeKnowledge, updateKnowledge } from '~/services/knowledge.service'
 import {
     buildKnowledgeSaveRequest,
     cloneKnowledgeForEdit,
@@ -113,6 +113,24 @@ async function handlePublish() {
         await updateKnowledge(knowledgeId.value, buildKnowledgeSaveRequest(editForm.value))
         await publishKnowledge(knowledgeId.value)
         ElMessage.success('已发布')
+        // 修订重发场景:若存在 predecessor,引导用户选择是否替代原规则
+        const predecessorId = sessionStorage.getItem(`ruleRevisePredecessor:${knowledgeId.value}`)
+        if (predecessorId) {
+            sessionStorage.removeItem(`ruleRevisePredecessor:${knowledgeId.value}`)
+            try {
+                await ElMessageBox.confirm('是否用此修订版本替代原规则?原规则将下架。', '替代原版本', {
+                    type: 'warning', confirmButtonText: '替代原版本', cancelButtonText: '暂不替代',
+                })
+                await supersedeKnowledge(knowledgeId.value, { predecessorId: Number(predecessorId), comment: '规则修订重发' })
+                ElMessage.success('已替代原规则')
+            } catch (e) {
+                if (e === 'cancel' || e?.message === 'cancel') {
+                    // 用户选择「暂不替代」,不报错
+                } else {
+                    ElMessage.error('替代原规则失败,可稍后在详情页手动 supersede')
+                }
+            }
+        }
         router.push(resolveKnowledgeDetailPath(editForm.value.knowledgeType, knowledgeId.value))
     } catch (error) {
         ElMessage.error(error.message || '发布失败')

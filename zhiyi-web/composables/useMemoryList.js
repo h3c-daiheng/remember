@@ -32,6 +32,19 @@ export function useMemoryList() {
         || typeFilter.value === KNOWLEDGE_TYPES.EXPERIENCE,
     )
 
+    /** 多选状态：翻页 / 切空间 / 切类型后由 loadList 调 clearSelection 清空 */
+    const selectedIds = ref([])
+    function toggleSelect(id, checked) {
+        if (checked) {
+            if (!selectedIds.value.includes(id)) selectedIds.value.push(id)
+        } else {
+            selectedIds.value = selectedIds.value.filter((x) => x !== id)
+        }
+    }
+    function clearSelection() {
+        selectedIds.value = []
+    }
+
     /**
      * 加载记忆列表；typeFilter=all 时请求后端全类型
      */
@@ -52,6 +65,7 @@ export function useMemoryList() {
             )
             memoryList.value = result.list || []
             total.value = result.total || 0
+            clearSelection()
         } finally {
             if (!silent) {
                 loading.value = false
@@ -104,5 +118,8 @@ export function useMemoryList() {
         search,
         switchTypeFilter,
         switchTab,
+        selectedIds,
+        toggleSelect,
+        clearSelection,
     }
 }

@@ -6,6 +6,7 @@ import { fetchAuthMeRequest } from '~/services/auth.service'
 import { saveStoredToken } from '~/utils/token'
 import {
     createWorkspaceRequest,
+    deleteWorkspaceRequest,
     fetchWorkspaceListRequest,
     switchWorkspaceRequest,
 } from '~/services/workspace.service'
@@ -149,6 +150,21 @@ export function useWorkspace() {
         return result.user
     }
 
+    async function deleteWorkspace(workspaceId, confirmName) {
+        await deleteWorkspaceRequest(workspaceId, confirmName)
+        await loadWorkspaceList()
+        if (String(currentWorkspace.value?.workspaceId) === String(workspaceId)) {
+            const remaining = workspaceList.value.find((item) => String(item.workspaceId) !== String(workspaceId))
+            if (remaining) {
+                await switchWorkspace(remaining.workspaceId)
+            } else {
+                // 无剩余空间:清空当前上下文,提示用户重新登录/创建
+                currentWorkspace.value = null
+            }
+        }
+        notifyWorkspaceContextChanged()
+    }
+
     /**
      * 从主站设置页返回后静默同步：对比关键字段变化再通知业务页刷新
      */
@@ -181,6 +197,7 @@ export function useWorkspace() {
         loadWorkspaceList,
         switchWorkspace,
         createWorkspace,
+        deleteWorkspace,
         notifyWorkspaceContextChanged,
         refreshWorkspaceAfterReturnFromMainSite,
     }

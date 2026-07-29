@@ -3,6 +3,7 @@
  * 对应后端 KnowledgeController /knowledge/*、GraphController /graph/*
  */
 import { apiRequest } from '~/services/http'
+import { getStoredToken } from '~/utils/token'
 import { appendTraceSearchFilters } from '~/utils/traceSearch'
 
 /**
@@ -187,4 +188,51 @@ export function supersedeKnowledge(successorId, payload) {
         method: 'POST',
         body: JSON.stringify(payload),
     })
+}
+
+/**
+ * 导出当前工作空间知识为 Markdown（后端返回 text/markdown 文件流，绕过 apiRequest 的 JSON 解包）
+ */
+export async function exportKnowledgeMarkdown(knowledgeType = 'all') {
+  const runtimeConfig = useRuntimeConfig()
+  const token = getStoredToken()
+  const query = knowledgeType ? `?knowledgeType=${encodeURIComponent(knowledgeType)}` : ''
+  const response = await fetch(`${runtimeConfig.public.apiBase}/knowledge/export${query}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  if (!response.ok) {
+    throw new Error('导出失败')
+  }
+  return response.text()
+}
+
+/**
+ * 批量导入经验（Markdown -> 草稿）：multipart file 上传，绕过 apiRequest（其设了 Content-Type: application/json）
+ * 不要手动设 Content-Type，浏览器会自动带 multipart/form-data; boundary=...
+ */
+export async function importKnowledgeMarkdown(file) {
+  const runtimeConfig = useRuntimeConfig()
+  const token = getStoredToken()
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(`${runtimeConfig.public.apiBase}/knowledge/import`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form
+  })
+  const result = await response.json()
+  if (result.code !== 0) {
+    throw new Error(result.message || '导入失败')
+  }
+  return result.data
+}
+
+/**
+ * 批量删除知识：body { ids }，后端逐条校验权限并返回 { deleted, failed, failures }
+ */
+export function batchDeleteKnowledge(ids) {
+  return apiRequest('/knowledge/batch', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
 }

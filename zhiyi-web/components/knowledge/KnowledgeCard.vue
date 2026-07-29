@@ -5,6 +5,10 @@
         class="knowledge-card group block no-underline text-inherit"
     >
         <div class="knowledge-card__inner flex items-stretch gap-3">
+            <!-- 多选 checkbox：外层 @click.stop 阻止冒泡到 NuxtLink，避免勾选触发跳转 -->
+            <div v-if="selectable" class="shrink-0 self-center pl-1" @click.stop>
+                <el-checkbox :model-value="selected" @change="onCheckboxChange" />
+            </div>
             <!-- 主内容：标题/归属/元信息占满宽度，避免左挤右空 -->
             <div class="flex-1 min-w-0">
                 <!-- 标题行：类型徽章 + 标题 + 召回次数 -->
@@ -108,7 +112,24 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    /** 是否展示多选 checkbox（owner/admin 可批量删除时开启） */
+    selectable: {
+        type: Boolean,
+        default: false,
+    },
+    /** 当前卡片是否处于选中态 */
+    selected: {
+        type: Boolean,
+        default: false,
+    },
 })
+
+const emit = defineEmits(['select'])
+
+/** checkbox 勾选变化：向外抛 { id, checked }，由父组件维护多选状态 */
+function onCheckboxChange(val) {
+    emit('select', { id: props.knowledge.id, checked: val })
+}
 
 /** 详情页路由 */
 const detailPath = computed(() => {

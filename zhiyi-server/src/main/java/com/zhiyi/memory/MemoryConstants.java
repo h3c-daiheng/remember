@@ -137,6 +137,33 @@ public final class MemoryConstants {
     /** AI 自动审核时写入的 Review 备注前缀 */
     public static final String AI_REVIEW_COMMENT_PREFIX = "AI 审查自动处理：";
 
+    /** 可靠性档位：可靠，可直接采纳 */
+    public static final String RELIABILITY_RELIABLE = "reliable";
+
+    /** 可靠性档位：存疑，须结合代码核实 */
+    public static final String RELIABILITY_UNCERTAIN = "uncertain";
+
+    /** 可靠性档位：低置信，仅作线索，必须验证 */
+    public static final String RELIABILITY_LOW = "low";
+
+    /** 反馈因子可靠阈值：>= 该值视为可靠维度（无负面或有正面反馈） */
+    public static final double RELIABILITY_FEEDBACK_RELIABLE = 1.0D;
+
+    /** 反馈因子存疑阈值：>= 该值且 < 可靠阈值视为存疑（有少量负面反馈） */
+    public static final double RELIABILITY_FEEDBACK_UNCERTAIN = 0.6D;
+
+    /** 时效因子可靠阈值（约 72 天内） */
+    public static final double RELIABILITY_FRESHNESS_RELIABLE = 0.8D;
+
+    /** 时效因子存疑阈值（约 144 天内） */
+    public static final double RELIABILITY_FRESHNESS_UNCERTAIN = 0.6D;
+
+    /** 可信度因子可靠阈值（>=4 条 evidence） */
+    public static final double RELIABILITY_TRUST_RELIABLE = 1.0D;
+
+    /** 可信度因子存疑阈值（>=1 条 evidence） */
+    public static final double RELIABILITY_TRUST_UNCERTAIN = 0.7D;
+
     private MemoryConstants() {
     }
 }

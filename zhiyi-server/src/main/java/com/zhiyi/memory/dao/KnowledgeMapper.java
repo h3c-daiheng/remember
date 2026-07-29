@@ -9,4 +9,14 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface KnowledgeMapper extends BaseMapper<KnowledgeEntity> {
+
+    /** 查询工作空间下全部知识 id(含已逻辑删除,绕过 @TableLogic) */
+    @org.apache.ibatis.annotations.Select(
+            "SELECT id FROM knowledge WHERE workspace_id = #{workspaceId}")
+    java.util.List<java.lang.Long> selectIdsByWorkspace(@org.apache.ibatis.annotations.Param("workspaceId") String workspaceId);
+
+    /** 物理删除工作空间下全部知识(绕过 @TableLogic) */
+    @org.apache.ibatis.annotations.Delete(
+            "DELETE FROM knowledge WHERE workspace_id = #{workspaceId}")
+    int deleteByWorkspacePhysical(@org.apache.ibatis.annotations.Param("workspaceId") String workspaceId);
 }

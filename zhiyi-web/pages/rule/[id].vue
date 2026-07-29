@@ -40,6 +40,15 @@
                 </el-button>
             </template>
             <el-button
+                v-if="detail.lifecycleStatus === KNOWLEDGE_LIFECYCLE.PUBLISHED && canModify"
+                size="small"
+                :loading="revising"
+                @click="handleRevise"
+            >
+                <el-icon class="mr-1"><EditPen /></el-icon>
+                修订
+            </el-button>
+            <el-button
                 v-if="canDelete"
                 size="small"
                 type="danger"
@@ -57,8 +66,9 @@
 <script setup>
 import { Delete, EditPen, Remove } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { KNOWLEDGE_LIFECYCLE } from '~/constants/knowledge'
-import { deleteKnowledge, deprecateKnowledge, publishKnowledge } from '~/services/knowledge.service'
+import { KNOWLEDGE_LIFECYCLE, KNOWLEDGE_TYPES } from '~/constants/knowledge'
+import { createKnowledge, deleteKnowledge, deprecateKnowledge, publishKnowledge } from '~/services/knowledge.service'
+import { buildKnowledgeSaveRequest, cloneKnowledgeForEdit, resolveKnowledgeDraftPath } from '~/utils/knowledge'
 
 definePageMeta({
     layout: 'app',
@@ -82,6 +92,7 @@ usePageTracker()
 const publishing = ref(false)
 const deprecating = ref(false)
 const deleting = ref(false)
+const revising = ref(false)
 
 /** 加载当前路由对应的规则详情 */
 async function loadCurrentDetail(options = {}) {
@@ -143,6 +154,28 @@ async function handleDeprecate() {
         ElMessage.error(error.message || '下架失败')
     } finally {
         deprecating.value = false
+    }
+}
+
+/** 修订重发:克隆当前已发布规则为草稿,发布后引导 supersede 原版 */
+async function handleRevise() {
+    if (!canModify.value) {
+        return
+    }
+    try {
+        revising.value = true
+        const clone = cloneKnowledgeForEdit(detail.value)
+        clone.publish = false
+        clone.knowledgeType = KNOWLEDGE_TYPES.RULE
+        const payload = buildKnowledgeSaveRequest(clone)
+        payload.publish = false
+        const newId = await createKnowledge(payload)
+        sessionStorage.setItem(`ruleRevisePredecessor:${newId}`, String(knowledgeId.value))
+        await router.push(resolveKnowledgeDraftPath(KNOWLEDGE_TYPES.RULE, newId))
+    } catch (e) {
+        ElMessage.error(e?.message || '创建修订草稿失败')
+    } finally {
+        revising.value = false
     }
 }
 
