@@ -100,6 +100,8 @@ public/_nuxt/builds/latest.json
 /.mcp.json
 # Claude Code 会话与本地设置
 /.claude/
+# CodeGraph 本地索引（工具产物，勿提交）
+/.codegraph/
 # 编译脚本产物：离线部署包与镜像归档
 /offline/
 zhiyi-offline*.tar.gz

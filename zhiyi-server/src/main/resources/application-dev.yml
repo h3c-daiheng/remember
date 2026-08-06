@@ -69,7 +69,10 @@ zhiyi:
     read-timeout-millis: 120000
   ai-review:
     enabled: true
+    # 相似交叉验证阈值：LLM approve 但存在达到此相似度的已发布记忆时转人工
     similar-threshold: 0.65
+    # 极高相似重复门禁：达到此相似度无论结论如何都转人工
+    similar-duplicate-threshold: 0.85
     auto-route-enabled: true
     auto-execute-confidence-threshold: 0.75
   governance:

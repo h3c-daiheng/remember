@@ -166,18 +166,22 @@ public class FactTransformEngine {
     }
 
     /**
-     * 生成 Rule 标题：[Rule] {module} {首条 rule 文本前 40 字}
+     * 生成 Rule 标题：优先使用提交的 title，缺失时回退到首条 rule/constraint 文本。
+     * 标题统一截断 80 字，与 SummarizeEngine.buildTitle 一致。
      */
     private String buildRuleTitle(KnowledgeDraftContent sourceContent) {
         String module = StringUtils.defaultString(sourceContent.getModule(), "通用");
-        String firstRuleText = findFirstFactText(sourceContent, "rule");
-        if (StringUtils.isBlank(firstRuleText)) {
-            firstRuleText = findFirstFactText(sourceContent, "constraint");
+        String title = StringUtils.trimToNull(sourceContent.getTitle());
+        if (StringUtils.isBlank(title)) {
+            title = findFirstFactText(sourceContent, "rule");
         }
-        if (StringUtils.isBlank(firstRuleText)) {
-            firstRuleText = StringUtils.defaultString(sourceContent.getTitle(), "未命名规范");
+        if (StringUtils.isBlank(title)) {
+            title = findFirstFactText(sourceContent, "constraint");
         }
-        String snippet = firstRuleText.length() > 40 ? firstRuleText.substring(0, 40) : firstRuleText;
+        if (StringUtils.isBlank(title)) {
+            title = "未命名规范";
+        }
+        String snippet = title.length() > 80 ? title.substring(0, 80) : title;
         return "[Rule] " + module + " " + snippet;
     }
 
@@ -188,18 +192,22 @@ public class FactTransformEngine {
     }
 
     /**
-     * 生成 Decision 标题：[Decision] {module} {首条 decision 文本前 40 字}
+     * 生成 Decision 标题：优先使用提交的 title，缺失时回退到首条 decision/evidence 文本。
+     * 标题统一截断 80 字，与 SummarizeEngine.buildTitle 一致。
      */
     private String buildDecisionTitle(KnowledgeDraftContent sourceContent) {
         String module = StringUtils.defaultString(sourceContent.getModule(), "通用");
-        String firstDecisionText = findFirstFactText(sourceContent, "decision");
-        if (StringUtils.isBlank(firstDecisionText)) {
-            firstDecisionText = findFirstFactText(sourceContent, "evidence");
+        String title = StringUtils.trimToNull(sourceContent.getTitle());
+        if (StringUtils.isBlank(title)) {
+            title = findFirstFactText(sourceContent, "decision");
         }
-        if (StringUtils.isBlank(firstDecisionText)) {
-            firstDecisionText = StringUtils.defaultString(sourceContent.getTitle(), "未命名决策");
+        if (StringUtils.isBlank(title)) {
+            title = findFirstFactText(sourceContent, "evidence");
         }
-        String snippet = firstDecisionText.length() > 40 ? firstDecisionText.substring(0, 40) : firstDecisionText;
+        if (StringUtils.isBlank(title)) {
+            title = "未命名决策";
+        }
+        String snippet = title.length() > 80 ? title.substring(0, 80) : title;
         return "[Decision] " + module + " " + snippet;
     }
 
